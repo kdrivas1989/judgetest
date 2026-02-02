@@ -151,7 +151,23 @@
             }
 
             if (mcAnswered < totalQuestions) {
-                if (!confirm(`You have only answered ${mcAnswered} of ${totalQuestions} questions. Submit anyway?`)) {
+                // Find which questions are unanswered
+                const unanswered = [];
+                for (let i = 1; i <= totalQuestions; i++) {
+                    const selected = document.querySelector(`input[name="q${i}"]:checked`);
+                    if (!selected) {
+                        unanswered.push(i);
+                    }
+                }
+                const missedList = unanswered.map(q => `Q${q}`).join(', ');
+                if (!confirm(`You missed ${unanswered.length} question(s): ${missedList}\n\nSubmit anyway?`)) {
+                    // Scroll to first unanswered question
+                    const firstMissed = document.getElementById(`question-${unanswered[0]}`);
+                    if (firstMissed) {
+                        firstMissed.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        firstMissed.classList.add('ring-2', 'ring-red-400');
+                        setTimeout(() => firstMissed.classList.remove('ring-2', 'ring-red-400'), 3000);
+                    }
                     return;
                 }
             }
