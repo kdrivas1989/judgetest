@@ -745,7 +745,71 @@ def view_results(result_id):
         if result['test_id'] not in available_tests:
             return "Unauthorized", 403
 
-    return render_template('results.html', result=result, result_id=result_id)
+    # Check if examiner can approve references (non-passing tests only)
+    can_approve = role in ['proctor', 'admin'] and not result.get('passed', True)
+
+    return render_template('results.html', result=result, result_id=result_id,
+                         can_approve=can_approve, role=role)
+
+
+@app.route('/approve-reference/<result_id>', methods=['POST'])
+@proctor_required
+def approve_reference(result_id):
+    """Allow examiner to approve a reference answer on a non-passing test."""
+    result = get_test_result(result_id)
+    if not result:
+        return jsonify({'error': 'Results not found'}), 404
+
+    # Only allow on non-passing tests
+    if result.get('passed', True):
+        return jsonify({'error': 'Can only approve references on non-passing tests'}), 400
+
+    # Check proctor has access to this test
+    role = session.get('role')
+    if role == 'proctor':
+        available_tests = get_proctor_tests(session.get('user'))
+        if result['test_id'] not in available_tests:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.json
+    question_id = data.get('question_id')
+
+    if question_id is None:
+        return jsonify({'error': 'Question ID required'}), 400
+
+    # Find and update the question result
+    updated = False
+    for r in result.get('results', []):
+        if r['id'] == question_id and not r.get('is_section_correct'):
+            r['is_section_correct'] = True
+            r['section_approved_by'] = session.get('user')
+            r['question_points'] = r.get('question_points', 0) + 0.5
+            updated = True
+            break
+
+    if not updated:
+        return jsonify({'error': 'Question not found or already approved'}), 400
+
+    # Recalculate total score
+    total_points = sum(r.get('question_points', 0) for r in result['results'])
+    total_possible = result.get('total_possible', len(result['results']) * 4)
+    new_score = round((total_points / total_possible) * 100, 1)
+    passing_score = result.get('passing_score', 70)
+
+    result['total_points'] = total_points
+    result['score'] = new_score
+    result['passed'] = new_score >= passing_score
+
+    # Save updated result
+    save_test_result(result_id, result)
+
+    return jsonify({
+        'success': True,
+        'new_score': new_score,
+        'total_points': total_points,
+        'passed': result['passed'],
+        'message': f'Reference approved. New score: {new_score}%'
+    })
 
 
 @app.route('/proctor')
