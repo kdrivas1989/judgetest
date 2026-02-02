@@ -613,12 +613,14 @@ def change_password():
 @app.route('/admin')
 @admin_required
 def admin_dashboard():
-    # Get all proctors
+    # Get all proctors and students
     all_users = get_all_users()
     proctors = {u: data for u, data in all_users.items() if data['role'] == 'proctor'}
+    students = {u: data for u, data in all_users.items() if data['role'] == 'student'}
     all_results = get_all_test_results()
     return render_template('admin.html',
                          proctors=proctors,
+                         students=students,
                          categories=CATEGORIES,
                          results=all_results,
                          tests=TESTS)
@@ -686,6 +688,43 @@ def delete_proctor(username):
 
     delete_user(username)
     return jsonify({'success': True, 'message': 'Proctor deleted'})
+
+
+@app.route('/admin/add-student', methods=['POST'])
+@admin_required
+def admin_add_student():
+    data = request.json
+    username = data.get('username', '').lower()
+    password = data.get('password', '')
+    name = data.get('name', '')
+    assigned_tests = data.get('assigned_tests', [])
+
+    if not username or not password or not name:
+        return jsonify({'error': 'All fields required'}), 400
+
+    if get_user(username):
+        return jsonify({'error': 'Username already exists'}), 400
+
+    save_user(username, {
+        'password': password,
+        'role': 'student',
+        'name': name,
+        'categories': [],
+        'assigned_tests': assigned_tests
+    })
+
+    return jsonify({'success': True, 'message': f'Student {name} added with {len(assigned_tests)} test(s)'})
+
+
+@app.route('/admin/delete-student/<username>', methods=['POST'])
+@admin_required
+def admin_delete_student(username):
+    user = get_user(username)
+    if not user or user['role'] != 'student':
+        return jsonify({'error': 'Student not found'}), 404
+
+    delete_user(username)
+    return jsonify({'success': True, 'message': 'Student deleted'})
 
 
 @app.route('/admin/get-proctor/<username>')
