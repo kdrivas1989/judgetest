@@ -297,7 +297,7 @@ TESTS = {
         "questions": [
             {"id": 1, "question": "In Speed, time is measured to what precision?", "options": ["0.1 seconds", "0.01 seconds", "0.001 seconds", "0.0001 seconds"], "correct": 2, "correct_section": "4.2.3"},
             {"id": 2, "question": "In Distance, measurements are to what precision?", "options": ["0.1 meters", "0.5 meters", "1 meter", "0.01 meters"], "correct": 3, "correct_section": "4.3.5.2"},
-            {"id": 3, "question": "In Zone Accuracy, the center zone is worth how many points?", "options": ["50 points", "75 points", "100 points", "125 points"], "correct": 2, "correct_section": "3.3.3"},
+            {"id": 3, "question": "A video review (VR) cycle is comprised of a maximum of how many viewings?", "options": ["One", "Two", "Three", "Four"], "correct": 2, "correct_section": "12-6.2.4"},
             {"id": 4, "question": "If Out Flying (OF) occurs after G1 is scored, what result is issued?", "options": ["Minimum result (0 points)", "Default result (3 points)", "Rejump offered", "Disqualification"], "correct": 1, "correct_section": "4.1.3"},
             {"id": 5, "question": "In Distance, what is measured from G1 to determine score?", "options": ["Distance to water exit", "Distance to G5", "Distance to closest point touched during landing", "Distance to landing stop"], "correct": 2, "correct_section": "4.3.5.2"},
             {"id": 6, "question": "How many zones are in Zone Accuracy?", "options": ["Three", "Four", "Five", "Six"], "correct": 2, "correct_section": "3.3.1"},
