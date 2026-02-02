@@ -713,6 +713,10 @@ def save_test(test_id):
     data = request.json
     questions = data.get('questions', [])
 
+    # Validate exactly 25 questions
+    if len(questions) != 25:
+        return jsonify({'error': f'Test must have exactly 25 questions. Received {len(questions)}.'}), 400
+
     # Validate questions
     for q in questions:
         if not q.get('question') or not q.get('options') or len(q['options']) != 4:

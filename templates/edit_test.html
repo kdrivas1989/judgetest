@@ -19,20 +19,26 @@
     <div class="container mx-auto px-4 py-6 max-w-4xl">
         <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold text-gray-800">Questions (<span id="questionCount">{{ questions|length }}</span>)</h2>
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800">Questions (25 Required)</h2>
+                    <p class="text-sm text-gray-500">Edit any question below. Tests must have exactly 25 questions.</p>
+                </div>
                 <div class="flex gap-2">
-                    <button onclick="addQuestion()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
-                        + Add Question
-                    </button>
                     <button onclick="resetTest()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded">
                         Reset to Default
                     </button>
                     <button onclick="saveTest()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
-                        Save Changes
+                        Save Test
                     </button>
                 </div>
             </div>
             <div id="saveMessage" class="hidden mb-4"></div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p class="text-blue-800 text-sm">
+                    <strong>How to replace a question:</strong> Edit the question text, options, correct answer (select the radio button), and section reference directly below. Your changes are saved when you click "Save Test".
+                </p>
+            </div>
         </div>
 
         <div id="questionsContainer">
@@ -40,9 +46,9 @@
             <div class="question-card bg-white rounded-lg shadow-lg p-6 mb-4" data-id="{{ q.id }}">
                 <div class="flex justify-between items-start mb-4">
                     <span class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
-                        Question <span class="q-number">{{ q.id }}</span>
+                        Question {{ q.id }} of 25
                     </span>
-                    <button onclick="deleteQuestion(this)" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                    <button onclick="clearQuestion(this)" class="text-orange-600 hover:text-orange-800 text-sm">Clear & Replace</button>
                 </div>
 
                 <div class="mb-4">
@@ -54,7 +60,7 @@
                     {% for option in q.options %}
                     <div class="flex items-center gap-2">
                         <input type="radio" name="correct_{{ q.id }}" value="{{ loop.index0 }}" {% if loop.index0 == q.correct %}checked{% endif %} class="correct-radio w-4 h-4 text-green-600">
-                        <input type="text" class="option-input flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" value="{{ option }}" placeholder="Option {{ loop.index }}">
+                        <input type="text" class="option-input flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" value="{{ option }}" placeholder="Option {{ ['A', 'B', 'C', 'D'][loop.index0] }}">
                     </div>
                     {% endfor %}
                 </div>
@@ -68,83 +74,20 @@
         </div>
     </div>
 
-    <template id="questionTemplate">
-        <div class="question-card bg-white rounded-lg shadow-lg p-6 mb-4" data-id="">
-            <div class="flex justify-between items-start mb-4">
-                <span class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
-                    Question <span class="q-number"></span>
-                </span>
-                <button onclick="deleteQuestion(this)" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
-            </div>
-
-            <div class="mb-4">
-                <label class="block text-gray-700 font-medium mb-2">Question Text</label>
-                <textarea class="question-text w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" rows="2" placeholder="Enter question text"></textarea>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                <div class="flex items-center gap-2">
-                    <input type="radio" name="correct_new" value="0" checked class="correct-radio w-4 h-4 text-green-600">
-                    <input type="text" class="option-input flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" placeholder="Option A">
-                </div>
-                <div class="flex items-center gap-2">
-                    <input type="radio" name="correct_new" value="1" class="correct-radio w-4 h-4 text-green-600">
-                    <input type="text" class="option-input flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" placeholder="Option B">
-                </div>
-                <div class="flex items-center gap-2">
-                    <input type="radio" name="correct_new" value="2" class="correct-radio w-4 h-4 text-green-600">
-                    <input type="text" class="option-input flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" placeholder="Option C">
-                </div>
-                <div class="flex items-center gap-2">
-                    <input type="radio" name="correct_new" value="3" class="correct-radio w-4 h-4 text-green-600">
-                    <input type="text" class="option-input flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" placeholder="Option D">
-                </div>
-            </div>
-
-            <div>
-                <label class="block text-gray-700 font-medium mb-2">Section Reference</label>
-                <input type="text" class="section-ref w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" placeholder="e.g., 8-1.3.1">
-            </div>
-        </div>
-    </template>
-
     <script>
         const testId = "{{ test_id }}";
-        let questionCounter = {{ questions|length }};
 
-        function updateQuestionNumbers() {
-            const cards = document.querySelectorAll('.question-card');
-            cards.forEach((card, index) => {
-                const num = index + 1;
-                card.dataset.id = num;
-                card.querySelector('.q-number').textContent = num;
-                // Update radio button names
-                const radios = card.querySelectorAll('.correct-radio');
-                radios.forEach(radio => {
-                    radio.name = `correct_${num}`;
+        function clearQuestion(btn) {
+            if (confirm('Clear this question to enter a new one?')) {
+                const card = btn.closest('.question-card');
+                card.querySelector('.question-text').value = '';
+                card.querySelectorAll('.option-input').forEach((input, i) => {
+                    input.value = '';
+                    input.placeholder = `Option ${['A', 'B', 'C', 'D'][i]}`;
                 });
-            });
-            document.getElementById('questionCount').textContent = cards.length;
-        }
-
-        function addQuestion() {
-            const template = document.getElementById('questionTemplate');
-            const clone = template.content.cloneNode(true);
-            document.getElementById('questionsContainer').appendChild(clone);
-            updateQuestionNumbers();
-            // Scroll to new question
-            const cards = document.querySelectorAll('.question-card');
-            cards[cards.length - 1].scrollIntoView({ behavior: 'smooth' });
-        }
-
-        function deleteQuestion(btn) {
-            if (document.querySelectorAll('.question-card').length <= 1) {
-                alert('Test must have at least one question');
-                return;
-            }
-            if (confirm('Delete this question?')) {
-                btn.closest('.question-card').remove();
-                updateQuestionNumbers();
+                card.querySelector('.correct-radio').checked = true;
+                card.querySelector('.section-ref').value = '';
+                card.querySelector('.question-text').focus();
             }
         }
 
@@ -171,7 +114,13 @@
         async function saveTest() {
             const questions = collectQuestions();
 
-            // Validate
+            // Validate - must have exactly 25 questions
+            if (questions.length !== 25) {
+                alert(`Test must have exactly 25 questions. Currently has ${questions.length}.`);
+                return;
+            }
+
+            // Validate each question
             for (let i = 0; i < questions.length; i++) {
                 const q = questions[i];
                 if (!q.question) {
@@ -180,6 +129,10 @@
                 }
                 if (q.options.some(opt => !opt)) {
                     alert(`Question ${i + 1} is missing one or more options`);
+                    return;
+                }
+                if (!q.correct_section) {
+                    alert(`Question ${i + 1} is missing section reference`);
                     return;
                 }
             }
