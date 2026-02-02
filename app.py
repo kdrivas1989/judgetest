@@ -11,13 +11,13 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 from functools import wraps
 from questions import TESTS
 
-# PostgreSQL support
+# Database support
+import sqlite3  # Always available as fallback
 try:
     import psycopg2
     from psycopg2.extras import RealDictCursor
     USE_POSTGRES = True
 except ImportError:
-    import sqlite3
     USE_POSTGRES = False
 
 app = Flask(__name__)
