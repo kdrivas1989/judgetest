@@ -38,23 +38,18 @@
                         <p class="text-sm text-gray-500 mt-1">Default password: <code class="bg-gray-100 px-1 rounded">password</code></p>
                     </div>
                     <div>
-                        <label class="block text-gray-700 font-medium mb-2">Examiner Level</label>
-                        <select id="proctorLevel" required
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500">
-                            <option value="regional">Regional</option>
-                            <option value="national">National</option>
-                        </select>
-                        <p class="text-sm text-gray-500 mt-1">Regional examiners can only administer Regional tests. National examiners can administer both Regional and National tests.</p>
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 font-medium mb-2">Assigned Categories</label>
-                        <div class="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                        <label class="block text-gray-700 font-medium mb-2">Category Ratings</label>
+                        <p class="text-sm text-gray-500 mb-2">Select the rating level for each category. Regional can only administer Regional tests. National can administer both.</p>
+                        <div class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
                             {% for cat_id, cat in categories.items() %}
-                            <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                                <input type="checkbox" name="categories" value="{{ cat_id }}"
-                                    class="w-4 h-4 text-red-600 rounded focus:ring-red-500">
-                                <span class="text-gray-700">{{ cat.name }}</span>
-                            </label>
+                            <div class="flex items-center justify-between gap-2 p-2 hover:bg-gray-50 rounded">
+                                <span class="text-gray-700 font-medium min-w-16">{{ cat.name }}</span>
+                                <select name="cat_{{ cat_id }}" class="category-select px-3 py-1 border border-gray-300 rounded focus:outline-none focus:border-red-500 text-sm">
+                                    <option value="">Not Rated</option>
+                                    <option value="regional">Regional</option>
+                                    <option value="national">National</option>
+                                </select>
+                            </div>
                             {% endfor %}
                         </div>
                     </div>
@@ -82,12 +77,21 @@
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <span class="font-semibold text-gray-800">{{ proctor.name }}</span>
                                     <span class="text-sm text-gray-500">@{{ username }}</span>
-                                    {% for cat_id in proctor.get('categories', []) %}
-                                        {% if cat_id in categories %}
-                                        <span class="{% if proctor.get('proctor_level', 'regional') == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{% if proctor.get('proctor_level', 'regional') == 'national' %}N{% else %}R{% endif %}-{{ categories[cat_id].name }}</span>
-                                        {% endif %}
-                                    {% endfor %}
-                                    {% if not proctor.get('categories') %}
+                                    {% set proctor_cats = proctor.get('categories', {}) %}
+                                    {% if proctor_cats is mapping %}
+                                        {% for cat_id, level in proctor_cats.items() %}
+                                            {% if cat_id in categories %}
+                                            <span class="{% if level == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{% if level == 'national' %}N{% else %}R{% endif %}-{{ categories[cat_id].name }}</span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% elif proctor_cats is iterable and proctor_cats is not string %}
+                                        {% for cat_id in proctor_cats %}
+                                            {% if cat_id in categories %}
+                                            <span class="{% if proctor.get('proctor_level', 'regional') == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{% if proctor.get('proctor_level', 'regional') == 'national' %}N{% else %}R{% endif %}-{{ categories[cat_id].name }}</span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                    {% if not proctor_cats %}
                                     <span class="text-gray-400 text-sm italic">No categories</span>
                                     {% endif %}
                                     {% if proctor.get('expiration_date') %}
@@ -310,22 +314,17 @@
                         placeholder="Enter new password">
                 </div>
                 <div>
-                    <label class="block text-gray-700 font-medium mb-2">Examiner Level</label>
-                    <select id="editProctorLevel"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500">
-                        <option value="regional">Regional</option>
-                        <option value="national">National</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-gray-700 font-medium mb-2">Assigned Categories</label>
-                    <div id="editCategories" class="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                    <label class="block text-gray-700 font-medium mb-2">Category Ratings</label>
+                    <div id="editCategories" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
                         {% for cat_id, cat in categories.items() %}
-                        <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                            <input type="checkbox" name="editCat" value="{{ cat_id }}"
-                                class="w-4 h-4 text-red-600 rounded focus:ring-red-500">
-                            <span class="text-gray-700">{{ cat.name }}</span>
-                        </label>
+                        <div class="flex items-center justify-between gap-2 p-2 hover:bg-gray-50 rounded">
+                            <span class="text-gray-700 font-medium min-w-16">{{ cat.name }}</span>
+                            <select name="editCat_{{ cat_id }}" class="edit-category-select px-3 py-1 border border-gray-300 rounded focus:outline-none focus:border-red-500 text-sm">
+                                <option value="">Not Rated</option>
+                                <option value="regional">Regional</option>
+                                <option value="national">National</option>
+                            </select>
+                        </div>
                         {% endfor %}
                     </div>
                 </div>
@@ -355,10 +354,16 @@
 
             const name = document.getElementById('proctorName').value;
             const username = document.getElementById('proctorUsername').value;
-            const proctor_level = document.getElementById('proctorLevel').value;
             const expiration_date = document.getElementById('proctorExpiration').value;
-            const categoryCheckboxes = document.querySelectorAll('input[name="categories"]:checked');
-            const categories = Array.from(categoryCheckboxes).map(cb => cb.value);
+
+            // Collect categories as {cat_id: level} dict
+            const categories = {};
+            document.querySelectorAll('#addProctorForm .category-select').forEach(select => {
+                const catId = select.name.replace('cat_', '');
+                if (select.value) {
+                    categories[catId] = select.value;
+                }
+            });
 
             const messageDiv = document.getElementById('addMessage');
 
@@ -366,7 +371,7 @@
                 const response = await fetch('/admin/add-proctor', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, username, categories, proctor_level, expiration_date })
+                    body: JSON.stringify({ name, username, categories, expiration_date })
                 });
 
                 const result = await response.json();
@@ -403,12 +408,12 @@
                 document.getElementById('editUsername').value = data.username;
                 document.getElementById('editName').value = data.name;
                 document.getElementById('editPassword').value = '';
-                document.getElementById('editProctorLevel').value = data.proctor_level || 'regional';
                 document.getElementById('editExpiration').value = data.expiration_date || '';
 
-                // Reset and set checkboxes
-                document.querySelectorAll('input[name="editCat"]').forEach(cb => {
-                    cb.checked = data.categories.includes(cb.value);
+                // Reset and set category dropdowns
+                document.querySelectorAll('.edit-category-select').forEach(select => {
+                    const catId = select.name.replace('editCat_', '');
+                    select.value = data.categories[catId] || '';
                 });
 
                 document.getElementById('editModal').classList.remove('hidden');
@@ -430,16 +435,22 @@
             const username = document.getElementById('editUsername').value;
             const name = document.getElementById('editName').value;
             const password = document.getElementById('editPassword').value;
-            const proctor_level = document.getElementById('editProctorLevel').value;
             const expiration_date = document.getElementById('editExpiration').value;
-            const categoryCheckboxes = document.querySelectorAll('input[name="editCat"]:checked');
-            const categories = Array.from(categoryCheckboxes).map(cb => cb.value);
+
+            // Collect categories as {cat_id: level} dict
+            const categories = {};
+            document.querySelectorAll('.edit-category-select').forEach(select => {
+                const catId = select.name.replace('editCat_', '');
+                if (select.value) {
+                    categories[catId] = select.value;
+                }
+            });
 
             try {
                 const response = await fetch(`/admin/update-proctor/${username}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, password, categories, proctor_level, expiration_date })
+                    body: JSON.stringify({ name, password, categories, expiration_date })
                 });
 
                 const result = await response.json();

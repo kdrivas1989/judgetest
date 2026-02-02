@@ -493,7 +493,7 @@ def admin_required(f):
 
 
 def get_proctor_tests(username, include_general=True):
-    """Get tests available for a proctor based on assigned categories and level."""
+    """Get tests available for a proctor based on assigned categories and per-category levels."""
     user = get_user(username)
     all_tests = get_all_tests()
     if not user:
@@ -502,24 +502,28 @@ def get_proctor_tests(username, include_general=True):
         return all_tests  # Admin sees all tests
 
     available_tests = {}
-    proctor_level = user.get('proctor_level', 'regional')
 
     # Include general test only if requested (for results viewing, not answer keys)
     if include_general and GENERAL_TEST_ID in all_tests:
         available_tests[GENERAL_TEST_ID] = all_tests[GENERAL_TEST_ID]
 
-    # Add category-specific tests filtered by proctor level
-    # Regional proctors: only regional tests
-    # National proctors: both regional and national tests
-    categories = user.get('categories', [])
-    for cat_id in categories:
+    # Categories can be a dict {cat_id: level} or legacy list [cat_id, ...]
+    categories = user.get('categories', {})
+
+    # Handle legacy list format - convert to dict using global proctor_level
+    if isinstance(categories, list):
+        legacy_level = user.get('proctor_level', 'regional')
+        categories = {cat_id: legacy_level for cat_id in categories}
+
+    # Add category-specific tests filtered by per-category level
+    for cat_id, cat_level in categories.items():
         if cat_id in CATEGORIES:
             for test_id in CATEGORIES[cat_id]['tests']:
-                if proctor_level == 'regional' and '_regional' in test_id:
+                if cat_level == 'regional' and '_regional' in test_id:
                     if test_id in all_tests:
                         available_tests[test_id] = all_tests[test_id]
-                elif proctor_level == 'national':
-                    # National proctors can administer both regional and national tests
+                elif cat_level == 'national':
+                    # National level can administer both regional and national tests
                     if test_id in all_tests:
                         available_tests[test_id] = all_tests[test_id]
     return available_tests
@@ -945,8 +949,7 @@ def add_proctor():
     data = request.json
     username = data.get('username', '').lower()
     name = data.get('name', '')
-    categories = data.get('categories', [])
-    proctor_level = data.get('proctor_level', 'regional')
+    categories = data.get('categories', {})  # Now a dict: {cat_id: level}
     expiration_date = data.get('expiration_date', '')
 
     if not username or not name:
@@ -955,21 +958,29 @@ def add_proctor():
     if get_user(username):
         return jsonify({'error': 'Username already exists'}), 400
 
-    # Validate categories and proctor level
-    valid_categories = [c for c in categories if c in CATEGORIES]
-    if proctor_level not in PROCTOR_LEVELS:
-        proctor_level = 'regional'
+    # Validate categories - must be dict with valid cat_ids and levels
+    valid_categories = {}
+    if isinstance(categories, dict):
+        for cat_id, level in categories.items():
+            if cat_id in CATEGORIES and level in PROCTOR_LEVELS:
+                valid_categories[cat_id] = level
+    elif isinstance(categories, list):
+        # Legacy support: convert list to dict with default level
+        default_level = data.get('proctor_level', 'regional')
+        for cat_id in categories:
+            if cat_id in CATEGORIES:
+                valid_categories[cat_id] = default_level
 
     save_user(username, {
         'password': 'password',
         'role': 'proctor',
         'name': name,
         'categories': valid_categories,
-        'proctor_level': proctor_level,
         'expiration_date': expiration_date
     })
 
-    return jsonify({'success': True, 'message': f'{proctor_level.capitalize()} Examiner {name} added'})
+    cat_count = len(valid_categories)
+    return jsonify({'success': True, 'message': f'Examiner {name} added with {cat_count} category rating(s)'})
 
 
 @app.route('/admin/update-proctor/<username>', methods=['POST'])
@@ -980,15 +991,15 @@ def update_proctor(username):
         return jsonify({'error': 'Examiner not found'}), 404
 
     data = request.json
-    categories = data.get('categories', [])
+    categories = data.get('categories', {})
 
-    # Validate categories
-    valid_categories = [c for c in categories if c in CATEGORIES]
-    user['categories'] = valid_categories
-
-    # Update proctor level if provided
-    if data.get('proctor_level') in PROCTOR_LEVELS:
-        user['proctor_level'] = data['proctor_level']
+    # Validate categories - must be dict with valid cat_ids and levels
+    if isinstance(categories, dict):
+        valid_categories = {}
+        for cat_id, level in categories.items():
+            if cat_id in CATEGORIES and level in PROCTOR_LEVELS:
+                valid_categories[cat_id] = level
+        user['categories'] = valid_categories
 
     # Update expiration date if provided (can be empty to clear it)
     if 'expiration_date' in data:
@@ -1061,11 +1072,16 @@ def get_proctor_route(username):
     if not user or user['role'] != 'proctor':
         return jsonify({'error': 'Examiner not found'}), 404
 
+    # Convert legacy list format to dict if needed
+    categories = user.get('categories', {})
+    if isinstance(categories, list):
+        legacy_level = user.get('proctor_level', 'regional')
+        categories = {cat_id: legacy_level for cat_id in categories}
+
     return jsonify({
         'username': username,
         'name': user['name'],
-        'categories': user.get('categories', []),
-        'proctor_level': user.get('proctor_level', 'regional'),
+        'categories': categories,
         'expiration_date': user.get('expiration_date', '')
     })
 
