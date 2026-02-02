@@ -18,7 +18,7 @@
         <!-- Score Summary -->
         <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
             <div class="text-center">
-                <h2 class="text-2xl font-bold text-gray-800 mb-2">Test Results</h2>
+                <h2 class="text-2xl font-bold text-gray-800 mb-2">{{ result.test_name }}</h2>
                 <p class="text-gray-500">{{ result.student }} - {{ result.timestamp[:10] }}</p>
 
                 <div class="my-6">
@@ -29,7 +29,10 @@
                         {{ result.total_points }} of {{ result.total_possible }} points
                     </p>
                     <p class="text-sm text-gray-500 mt-2">
-                        Correct answer = 4 pts | Wrong answer + correct reference = 1 pt
+                        MC correct = 3.5 pts | Reference correct = 0.5 pts
+                    </p>
+                    <p class="text-sm text-gray-500 mt-1">
+                        Required to pass: {{ result.passing_score }}%
                     </p>
                 </div>
 
@@ -43,7 +46,7 @@
                 <div class="bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded-lg">
                     <span class="text-2xl">✗</span>
                     <span class="text-xl font-semibold ml-2">NOT PASSED</span>
-                    <p class="text-sm mt-1">A score of 75% or higher is required to pass.</p>
+                    <p class="text-sm mt-1">A score of {{ result.passing_score }}% or higher is required to pass.</p>
                 </div>
                 {% endif %}
             </div>
@@ -89,8 +92,8 @@
                 <div class="flex justify-between items-start mb-2">
                     <span class="font-medium text-gray-700 text-sm">Part B: Section Reference</span>
                     <div class="flex items-center gap-2">
-                        {% if not r.is_correct and r.is_section_correct %}
-                        <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-sm">+1 pt partial credit</span>
+                        {% if r.is_section_correct %}
+                        <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-sm">+0.5 pt reference</span>
                         {% endif %}
                         {% if r.is_section_correct %}
                         <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">Correct</span>
@@ -109,7 +112,6 @@
                         <span class="font-medium text-green-700 ml-1">{{ r.correct_section }}</span>
                     </div>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">{{ r.reference }}</p>
             </div>
         </div>
         {% endfor %}

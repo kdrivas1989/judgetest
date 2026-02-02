@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>USPA Judge Test</title>
+    <title>{{ test_name }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <nav class="bg-blue-600 text-white p-4 sticky top-0 z-10">
         <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold">USPA Judge Test</h1>
+            <h1 class="text-xl font-bold">{{ test_name }}</h1>
             <div class="flex items-center gap-4">
                 <span id="progress" class="text-sm">Question 1 of {{ total }}</span>
                 <span id="answered" class="text-sm bg-blue-700 px-3 py-1 rounded">0/{{ total }} answered</span>
+                <span class="text-sm bg-yellow-500 text-yellow-900 px-3 py-1 rounded">{{ passing_score }}% to pass</span>
             </div>
         </div>
     </nav>
@@ -41,11 +42,11 @@
 
                 <div class="mt-4 pt-4 border-t">
                     <label class="block text-sm font-medium text-gray-700 mb-2">
-                        Part B: Where did you find this answer? (Section number, e.g., 1.5.2.1) - Optional
+                        Part B: Where did you find this answer? (Section number, e.g., 8.1.3.1) - Optional
                     </label>
                     <input type="text" name="section{{ q.id }}"
                         class="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 section-input"
-                        placeholder="e.g., 1.5.2.1">
+                        placeholder="e.g., 8.1.3.1">
                 </div>
             </div>
             {% endfor %}
@@ -54,6 +55,7 @@
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">Submit Test</h3>
                 <p class="text-gray-600 mb-4">
                     Make sure you have answered all questions before submitting.
+                    You need <strong>{{ passing_score }}%</strong> to pass this test.
                 </p>
                 <button type="button" onclick="submitTest()"
                     class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition">
@@ -65,6 +67,7 @@
 
     <script>
         const totalQuestions = {{ total }};
+        const testId = "{{ test_id }}";
 
         function updateProgress() {
             const mcAnswered = document.querySelectorAll('input[type="radio"]:checked').length;
@@ -105,7 +108,7 @@
             }
 
             try {
-                const response = await fetch('/submit-test', {
+                const response = await fetch(`/submit-test/${testId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ answers, sections })
