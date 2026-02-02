@@ -40,12 +40,12 @@
                     <div>
                         <label class="block text-gray-700 font-medium mb-2">Category Ratings</label>
                         <p class="text-sm text-gray-500 mb-2">Select the rating level for each category. Regional can only administer Regional tests. National can administer both.</p>
-                        <div class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                        <div class="grid grid-cols-2 gap-2 border border-gray-200 rounded-lg p-3">
                             {% for cat_id, cat in categories.items() %}
                             <div class="flex items-center justify-between gap-2 p-2 hover:bg-gray-50 rounded">
-                                <span class="text-gray-700 font-medium min-w-16">{{ cat.name }}</span>
-                                <select name="cat_{{ cat_id }}" class="category-select px-3 py-1 border border-gray-300 rounded focus:outline-none focus:border-red-500 text-sm">
-                                    <option value="">Not Rated</option>
+                                <span class="text-gray-700 font-medium min-w-10">{{ cat.name }}</span>
+                                <select name="cat_{{ cat_id }}" class="category-select px-2 py-1 border border-gray-300 rounded focus:outline-none focus:border-red-500 text-sm">
+                                    <option value="">--</option>
                                     <option value="regional">Regional</option>
                                     <option value="national">National</option>
                                 </select>
@@ -315,12 +315,12 @@
                 </div>
                 <div>
                     <label class="block text-gray-700 font-medium mb-2">Category Ratings</label>
-                    <div id="editCategories" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                    <div id="editCategories" class="grid grid-cols-2 gap-2 border border-gray-200 rounded-lg p-3">
                         {% for cat_id, cat in categories.items() %}
                         <div class="flex items-center justify-between gap-2 p-2 hover:bg-gray-50 rounded">
-                            <span class="text-gray-700 font-medium min-w-16">{{ cat.name }}</span>
-                            <select name="editCat_{{ cat_id }}" class="edit-category-select px-3 py-1 border border-gray-300 rounded focus:outline-none focus:border-red-500 text-sm">
-                                <option value="">Not Rated</option>
+                            <span class="text-gray-700 font-medium min-w-10">{{ cat.name }}</span>
+                            <select name="editCat_{{ cat_id }}" class="edit-category-select px-2 py-1 border border-gray-300 rounded focus:outline-none focus:border-red-500 text-sm">
+                                <option value="">--</option>
                                 <option value="regional">Regional</option>
                                 <option value="national">National</option>
                             </select>
