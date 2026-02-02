@@ -41,22 +41,20 @@
                             <p class="text-sm text-gray-500 mt-1">Default password: <code class="bg-gray-100 px-1 rounded">password</code></p>
                         </div>
                         <div>
-                            <label class="block text-gray-700 font-medium mb-2">Examiner Categories</label>
-                            <p class="text-sm text-gray-500 mb-2">Select categories this examiner can examine judges for</p>
-                            <div class="grid grid-cols-2 gap-2 border border-gray-200 rounded-lg p-3">
+                            <label class="block text-gray-700 font-medium mb-2">Examiner Categories & Expiration</label>
+                            <p class="text-sm text-gray-500 mb-2">Select categories and set optional expiration dates</p>
+                            <div class="space-y-2 border border-gray-200 rounded-lg p-3">
                                 {% for cat_id, cat in categories.items() %}
-                                <label class="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <div class="flex items-center gap-3 p-2 hover:bg-gray-50 rounded">
                                     <input type="checkbox" name="examiner_cat_{{ cat_id }}" value="{{ cat_id }}"
                                         class="examiner-cat-checkbox w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
-                                    <span class="text-gray-700">{{ cat.name }}</span>
-                                </label>
+                                    <span class="text-gray-700 font-medium w-10">{{ cat.name }}</span>
+                                    <input type="date" name="examiner_exp_{{ cat_id }}"
+                                        class="examiner-exp-input flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500"
+                                        placeholder="Expiration">
+                                </div>
                                 {% endfor %}
                             </div>
-                        </div>
-                        <div>
-                            <label class="block text-gray-700 font-medium mb-2">Expiration Date (Optional)</label>
-                            <input type="date" id="examinerExpiration"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500">
                         </div>
                         <button type="submit"
                             class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition">
@@ -78,14 +76,15 @@
                                     <div class="flex items-center gap-2 flex-wrap">
                                         <span class="font-semibold text-gray-800">{{ proctor.name }}</span>
                                         <span class="text-sm text-gray-500">@{{ username }}</span>
-                                        {% for cat_id, level in proctor_cats.items() %}
-                                            {% if cat_id in categories and level == 'examiner' %}
-                                            <span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">E-{{ categories[cat_id].name }}</span>
+                                        {% for cat_id, cat_data in proctor_cats.items() %}
+                                            {% set cat_level = cat_data.level if cat_data is mapping else cat_data %}
+                                            {% set cat_exp = cat_data.expiration if cat_data is mapping else '' %}
+                                            {% if cat_id in categories and cat_level == 'examiner' %}
+                                            <span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded" title="{% if cat_exp %}Expires: {{ cat_exp }}{% endif %}">
+                                                E-{{ categories[cat_id].name }}{% if cat_exp %}<span class="text-purple-500 ml-1">({{ cat_exp }})</span>{% endif %}
+                                            </span>
                                             {% endif %}
                                         {% endfor %}
-                                        {% if proctor.get('expiration_date') %}
-                                        <span class="text-xs text-gray-500 ml-2">Exp: {{ proctor.expiration_date }}</span>
-                                        {% endif %}
                                     </div>
                                     <div class="flex gap-2 ml-2">
                                         <button onclick="editProctor('{{ username }}')"
@@ -128,25 +127,23 @@
                             <p class="text-sm text-gray-500 mt-1">Default password: <code class="bg-gray-100 px-1 rounded">password</code></p>
                         </div>
                         <div>
-                            <label class="block text-gray-700 font-medium mb-2">Category Ratings</label>
+                            <label class="block text-gray-700 font-medium mb-2">Category Ratings & Expiration</label>
                             <p class="text-sm text-gray-500 mb-2">R=Regional tests only, N=National (both tests)</p>
-                            <div class="grid grid-cols-2 gap-2 border border-gray-200 rounded-lg p-3">
+                            <div class="space-y-2 border border-gray-200 rounded-lg p-3">
                                 {% for cat_id, cat in categories.items() %}
-                                <div class="flex items-center justify-between gap-2 p-2 hover:bg-gray-50 rounded">
-                                    <span class="text-gray-700 font-medium min-w-10">{{ cat.name }}</span>
+                                <div class="flex items-center gap-2 p-2 hover:bg-gray-50 rounded">
+                                    <span class="text-gray-700 font-medium w-10">{{ cat.name }}</span>
                                     <select name="cat_{{ cat_id }}" class="category-select px-2 py-1 border border-gray-300 rounded focus:outline-none focus:border-green-500 text-sm">
                                         <option value="">--</option>
-                                        <option value="regional">Regional</option>
-                                        <option value="national">National</option>
+                                        <option value="regional">R</option>
+                                        <option value="national">N</option>
                                     </select>
+                                    <input type="date" name="exp_{{ cat_id }}"
+                                        class="trainer-exp-input flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:border-green-500"
+                                        placeholder="Expiration">
                                 </div>
                                 {% endfor %}
                             </div>
-                        </div>
-                        <div>
-                            <label class="block text-gray-700 font-medium mb-2">Expiration Date (Optional)</label>
-                            <input type="date" id="proctorExpiration"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500">
                         </div>
                         <button type="submit"
                             class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition">
@@ -168,14 +165,15 @@
                                     <div class="flex items-center gap-2 flex-wrap">
                                         <span class="font-semibold text-gray-800">{{ proctor.name }}</span>
                                         <span class="text-sm text-gray-500">@{{ username }}</span>
-                                        {% for cat_id, level in proctor_cats.items() %}
-                                            {% if cat_id in categories and level in ['regional', 'national'] %}
-                                            <span class="{% if level == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{% if level == 'national' %}N{% else %}R{% endif %}-{{ categories[cat_id].name }}</span>
+                                        {% for cat_id, cat_data in proctor_cats.items() %}
+                                            {% set cat_level = cat_data.level if cat_data is mapping else cat_data %}
+                                            {% set cat_exp = cat_data.expiration if cat_data is mapping else '' %}
+                                            {% if cat_id in categories and cat_level in ['regional', 'national'] %}
+                                            <span class="{% if cat_level == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded" title="{% if cat_exp %}Expires: {{ cat_exp }}{% endif %}">
+                                                {% if cat_level == 'national' %}N{% else %}R{% endif %}-{{ categories[cat_id].name }}{% if cat_exp %}<span class="{% if cat_level == 'national' %}text-green-500{% else %}text-yellow-600{% endif %} ml-1">({{ cat_exp }})</span>{% endif %}
+                                            </span>
                                             {% endif %}
                                         {% endfor %}
-                                        {% if proctor.get('expiration_date') %}
-                                        <span class="text-xs text-gray-500 ml-2">Exp: {{ proctor.expiration_date }}</span>
-                                        {% endif %}
                                     </div>
                                     <div class="flex gap-2 ml-2">
                                         <button onclick="editProctor('{{ username }}')"
@@ -373,8 +371,8 @@
 
     <!-- Edit Examiner Modal -->
     <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">Edit Examiner</h3>
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Edit Examiner/Trainer</h3>
             <form id="editProctorForm" class="space-y-4">
                 <input type="hidden" id="editUsername">
                 <div>
@@ -389,26 +387,22 @@
                         placeholder="Enter new password">
                 </div>
                 <div>
-                    <label class="block text-gray-700 font-medium mb-2">Category Ratings</label>
-                    <p class="text-sm text-gray-500 mb-2">R=Regional, N=National, E=Examiner</p>
-                    <div id="editCategories" class="grid grid-cols-2 gap-2 border border-gray-200 rounded-lg p-3">
+                    <label class="block text-gray-700 font-medium mb-2">Category Ratings & Expiration</label>
+                    <p class="text-sm text-gray-500 mb-2">R=Regional, N=National, E=Examiner (set expiration per category)</p>
+                    <div id="editCategories" class="space-y-2 border border-gray-200 rounded-lg p-3">
                         {% for cat_id, cat in categories.items() %}
-                        <div class="flex items-center justify-between gap-2 p-2 hover:bg-gray-50 rounded">
-                            <span class="text-gray-700 font-medium min-w-10">{{ cat.name }}</span>
+                        <div class="flex items-center gap-2 p-2 hover:bg-gray-50 rounded">
+                            <span class="text-gray-700 font-medium w-10">{{ cat.name }}</span>
                             <select name="editCat_{{ cat_id }}" class="edit-category-select px-2 py-1 border border-gray-300 rounded focus:outline-none focus:border-red-500 text-sm">
                                 <option value="">--</option>
-                                <option value="regional">Regional</option>
-                                <option value="national">National</option>
-                                <option value="examiner">Examiner</option>
+                                <option value="regional">R</option>
+                                <option value="national">N</option>
+                                <option value="examiner">E</option>
                             </select>
+                            <input type="date" name="editExp_{{ cat_id }}" class="edit-exp-input flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:border-red-500">
                         </div>
                         {% endfor %}
                     </div>
-                </div>
-                <div>
-                    <label class="block text-gray-700 font-medium mb-2">Expiration Date (Optional)</label>
-                    <input type="date" id="editExpiration"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500">
                 </div>
                 <div class="flex gap-3">
                     <button type="button" onclick="closeEditModal()"
@@ -431,13 +425,17 @@
 
             const name = document.getElementById('examinerName').value;
             const username = document.getElementById('examinerUsername').value;
-            const expiration_date = document.getElementById('examinerExpiration').value;
 
-            // Collect categories as {cat_id: 'examiner'} for checked boxes
+            // Collect categories with per-category expiration: {cat_id: {"level": "examiner", "expiration": "..."}}
             const categories = {};
             document.querySelectorAll('.examiner-cat-checkbox:checked').forEach(cb => {
                 const catId = cb.value;
-                categories[catId] = 'examiner';
+                const expInput = document.querySelector(`input[name="examiner_exp_${catId}"]`);
+                const expiration = expInput ? expInput.value : '';
+                categories[catId] = {
+                    level: 'examiner',
+                    expiration: expiration
+                };
             });
 
             if (Object.keys(categories).length === 0) {
@@ -451,7 +449,7 @@
                 const response = await fetch('/admin/add-proctor', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, username, categories, expiration_date })
+                    body: JSON.stringify({ name, username, categories })
                 });
 
                 const result = await response.json();
@@ -480,14 +478,18 @@
 
             const name = document.getElementById('proctorName').value;
             const username = document.getElementById('proctorUsername').value;
-            const expiration_date = document.getElementById('proctorExpiration').value;
 
-            // Collect categories as {cat_id: level} dict
+            // Collect categories with per-category expiration: {cat_id: {"level": "...", "expiration": "..."}}
             const categories = {};
             document.querySelectorAll('#addProctorForm .category-select').forEach(select => {
                 const catId = select.name.replace('cat_', '');
                 if (select.value) {
-                    categories[catId] = select.value;
+                    const expInput = document.querySelector(`input[name="exp_${catId}"]`);
+                    const expiration = expInput ? expInput.value : '';
+                    categories[catId] = {
+                        level: select.value,
+                        expiration: expiration
+                    };
                 }
             });
 
@@ -497,7 +499,7 @@
                 const response = await fetch('/admin/add-proctor', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, username, categories, expiration_date })
+                    body: JSON.stringify({ name, username, categories })
                 });
 
                 const result = await response.json();
@@ -515,7 +517,7 @@
 
             } catch (error) {
                 messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
-                messageDiv.textContent = 'Error adding examiner: ' + error.message;
+                messageDiv.textContent = 'Error adding trainer: ' + error.message;
                 messageDiv.classList.remove('hidden');
             }
         });
@@ -534,12 +536,28 @@
                 document.getElementById('editUsername').value = data.username;
                 document.getElementById('editName').value = data.name;
                 document.getElementById('editPassword').value = '';
-                document.getElementById('editExpiration').value = data.expiration_date || '';
 
-                // Reset and set category dropdowns
+                // Reset and set category dropdowns and expiration dates
                 document.querySelectorAll('.edit-category-select').forEach(select => {
                     const catId = select.name.replace('editCat_', '');
-                    select.value = data.categories[catId] || '';
+                    const catData = data.categories[catId];
+                    if (catData) {
+                        // Handle both new format {level, expiration} and old format (just level string)
+                        const level = typeof catData === 'object' ? catData.level : catData;
+                        select.value = level || '';
+                    } else {
+                        select.value = '';
+                    }
+                });
+
+                document.querySelectorAll('.edit-exp-input').forEach(input => {
+                    const catId = input.name.replace('editExp_', '');
+                    const catData = data.categories[catId];
+                    if (catData && typeof catData === 'object') {
+                        input.value = catData.expiration || '';
+                    } else {
+                        input.value = '';
+                    }
                 });
 
                 document.getElementById('editModal').classList.remove('hidden');
@@ -561,14 +579,18 @@
             const username = document.getElementById('editUsername').value;
             const name = document.getElementById('editName').value;
             const password = document.getElementById('editPassword').value;
-            const expiration_date = document.getElementById('editExpiration').value;
 
-            // Collect categories as {cat_id: level} dict
+            // Collect categories with per-category expiration: {cat_id: {"level": "...", "expiration": "..."}}
             const categories = {};
             document.querySelectorAll('.edit-category-select').forEach(select => {
                 const catId = select.name.replace('editCat_', '');
                 if (select.value) {
-                    categories[catId] = select.value;
+                    const expInput = document.querySelector(`input[name="editExp_${catId}"]`);
+                    const expiration = expInput ? expInput.value : '';
+                    categories[catId] = {
+                        level: select.value,
+                        expiration: expiration
+                    };
                 }
             });
 
@@ -576,7 +598,7 @@
                 const response = await fetch(`/admin/update-proctor/${username}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, password, categories, expiration_date })
+                    body: JSON.stringify({ name, password, categories })
                 });
 
                 const result = await response.json();

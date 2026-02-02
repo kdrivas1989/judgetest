@@ -507,7 +507,10 @@ def get_proctor_tests(username, include_general=True):
     if include_general and GENERAL_TEST_ID in all_tests:
         available_tests[GENERAL_TEST_ID] = all_tests[GENERAL_TEST_ID]
 
-    # Categories can be a dict {cat_id: level} or legacy list [cat_id, ...]
+    # Categories can be:
+    # - New format: {cat_id: {"level": "national", "expiration": "2025-12-31"}}
+    # - Old format: {cat_id: "national"}
+    # - Legacy list: [cat_id, ...]
     categories = user.get('categories', {})
 
     # Handle legacy list format - convert to dict using global proctor_level
@@ -516,7 +519,13 @@ def get_proctor_tests(username, include_general=True):
         categories = {cat_id: legacy_level for cat_id in categories}
 
     # Add category-specific tests filtered by per-category level
-    for cat_id, cat_level in categories.items():
+    for cat_id, cat_data in categories.items():
+        # Handle both old format (string) and new format (dict)
+        if isinstance(cat_data, dict):
+            cat_level = cat_data.get('level', 'regional')
+        else:
+            cat_level = cat_data
+
         if cat_id in CATEGORIES:
             for test_id in CATEGORIES[cat_id]['tests']:
                 if cat_level == 'regional' and '_regional' in test_id:
@@ -942,8 +951,15 @@ def admin_dashboard():
     for username, proctor in proctors.items():
         cats = proctor.get('categories', {})
         if isinstance(cats, dict):
-            has_examiner = 'examiner' in cats.values()
-            has_trainer = 'regional' in cats.values() or 'national' in cats.values()
+            # Handle both old format {cat: "level"} and new format {cat: {"level": "...", "expiration": "..."}}
+            levels = []
+            for cat_data in cats.values():
+                if isinstance(cat_data, dict):
+                    levels.append(cat_data.get('level', ''))
+                else:
+                    levels.append(cat_data)
+            has_examiner = 'examiner' in levels
+            has_trainer = 'regional' in levels or 'national' in levels
             if has_examiner:
                 examiners[username] = proctor
             if has_trainer:
@@ -965,8 +981,7 @@ def add_proctor():
     data = request.json
     username = data.get('username', '').lower()
     name = data.get('name', '')
-    categories = data.get('categories', {})  # Now a dict: {cat_id: level}
-    expiration_date = data.get('expiration_date', '')
+    categories = data.get('categories', {})  # New format: {cat_id: {"level": "...", "expiration": "..."}}
 
     if not username or not name:
         return jsonify({'error': 'Username and name are required'}), 400
@@ -974,25 +989,41 @@ def add_proctor():
     if get_user(username):
         return jsonify({'error': 'Username already exists'}), 400
 
-    # Validate categories - must be dict with valid cat_ids and levels
+    # Validate categories - supports new format {cat_id: {"level": "...", "expiration": "..."}}
+    # and old format {cat_id: "level"} for backwards compatibility
     valid_categories = {}
     if isinstance(categories, dict):
-        for cat_id, level in categories.items():
-            if cat_id in CATEGORIES and level in PROCTOR_LEVELS:
-                valid_categories[cat_id] = level
+        for cat_id, cat_data in categories.items():
+            if cat_id in CATEGORIES:
+                if isinstance(cat_data, dict):
+                    # New format with per-category expiration
+                    level = cat_data.get('level', 'regional')
+                    if level in PROCTOR_LEVELS:
+                        valid_categories[cat_id] = {
+                            'level': level,
+                            'expiration': cat_data.get('expiration', '')
+                        }
+                elif cat_data in PROCTOR_LEVELS:
+                    # Old format - just level string
+                    valid_categories[cat_id] = {
+                        'level': cat_data,
+                        'expiration': ''
+                    }
     elif isinstance(categories, list):
         # Legacy support: convert list to dict with default level
         default_level = data.get('proctor_level', 'regional')
         for cat_id in categories:
             if cat_id in CATEGORIES:
-                valid_categories[cat_id] = default_level
+                valid_categories[cat_id] = {
+                    'level': default_level,
+                    'expiration': ''
+                }
 
     save_user(username, {
         'password': 'password',
         'role': 'proctor',
         'name': name,
-        'categories': valid_categories,
-        'expiration_date': expiration_date
+        'categories': valid_categories
     })
 
     cat_count = len(valid_categories)
@@ -1009,17 +1040,27 @@ def update_proctor(username):
     data = request.json
     categories = data.get('categories', {})
 
-    # Validate categories - must be dict with valid cat_ids and levels
+    # Validate categories - supports new format {cat_id: {"level": "...", "expiration": "..."}}
+    # and old format {cat_id: "level"} for backwards compatibility
     if isinstance(categories, dict):
         valid_categories = {}
-        for cat_id, level in categories.items():
-            if cat_id in CATEGORIES and level in PROCTOR_LEVELS:
-                valid_categories[cat_id] = level
+        for cat_id, cat_data in categories.items():
+            if cat_id in CATEGORIES:
+                if isinstance(cat_data, dict):
+                    # New format with per-category expiration
+                    level = cat_data.get('level', 'regional')
+                    if level in PROCTOR_LEVELS:
+                        valid_categories[cat_id] = {
+                            'level': level,
+                            'expiration': cat_data.get('expiration', '')
+                        }
+                elif cat_data in PROCTOR_LEVELS:
+                    # Old format - just level string
+                    valid_categories[cat_id] = {
+                        'level': cat_data,
+                        'expiration': ''
+                    }
         user['categories'] = valid_categories
-
-    # Update expiration date if provided (can be empty to clear it)
-    if 'expiration_date' in data:
-        user['expiration_date'] = data['expiration_date']
 
     # Update password if provided
     if data.get('password'):
@@ -1088,17 +1129,27 @@ def get_proctor_route(username):
     if not user or user['role'] != 'proctor':
         return jsonify({'error': 'Examiner not found'}), 404
 
-    # Convert legacy list format to dict if needed
+    # Convert legacy formats to new format {cat_id: {"level": "...", "expiration": "..."}}
     categories = user.get('categories', {})
+    normalized_categories = {}
     if isinstance(categories, list):
+        # Legacy list format
         legacy_level = user.get('proctor_level', 'regional')
-        categories = {cat_id: legacy_level for cat_id in categories}
+        for cat_id in categories:
+            normalized_categories[cat_id] = {'level': legacy_level, 'expiration': ''}
+    elif isinstance(categories, dict):
+        for cat_id, cat_data in categories.items():
+            if isinstance(cat_data, dict):
+                # Already new format
+                normalized_categories[cat_id] = cat_data
+            else:
+                # Old format with just level string
+                normalized_categories[cat_id] = {'level': cat_data, 'expiration': ''}
 
     return jsonify({
         'username': username,
         'name': user['name'],
-        'categories': categories,
-        'expiration_date': user.get('expiration_date', '')
+        'categories': normalized_categories
     })
 
 
