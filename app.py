@@ -3,22 +3,167 @@
 
 import os
 import uuid
+import sqlite3
+import json
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, g
 from functools import wraps
 from questions import TESTS
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'uspa-judge-test-secret-key-change-in-production')
 
-# User database (in production, use a real database)
-USERS = {
-    'proctor': {'password': 'proctor123', 'role': 'proctor', 'name': 'Proctor'},
-    'student': {'password': 'student123', 'role': 'student', 'name': 'Test Student'}
+# Database configuration
+DATABASE = os.environ.get('DATABASE_PATH', 'judgetest.db')
+
+# Categories based on chapters
+CATEGORIES = {
+    'al': {'name': 'AL (Accuracy Landing)', 'tests': ['ch8_regional', 'ch8_national']},
+    'fs': {'name': 'FS (Formation Skydiving)', 'tests': ['ch9_regional', 'ch9_national']},
+    'cf': {'name': 'CF (Canopy Formation)', 'tests': ['ch10_regional', 'ch10_national']},
+    'ae': {'name': 'AE (Artistic Events)', 'tests': ['ch11_regional', 'ch11_national']},
+    'cp': {'name': 'CP (Canopy Piloting)', 'tests': ['ch12_13_regional', 'ch12_13_national']},
+    'ws': {'name': 'WS (Wingsuit Flying)', 'tests': ['ch14_regional', 'ch14_national']},
+    'sp': {'name': 'SP (Speed Skydiving)', 'tests': ['ch15_regional', 'ch15_national']},
 }
 
-# Store test results
-test_results = {}
+# General test available to all proctors
+GENERAL_TEST_ID = 'general'
+
+
+def get_db():
+    """Get database connection for current request."""
+    if 'db' not in g:
+        g.db = sqlite3.connect(DATABASE)
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+
+@app.teardown_appcontext
+def close_db(exception):
+    """Close database connection at end of request."""
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
+
+
+def init_db():
+    """Initialize the database with tables and default users."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    # Create users table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL,
+            name TEXT NOT NULL,
+            categories TEXT DEFAULT '[]'
+        )
+    ''')
+
+    # Create test_results table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS test_results (
+            result_id TEXT PRIMARY KEY,
+            data TEXT NOT NULL
+        )
+    ''')
+
+    # Add default admin if not exists
+    cursor.execute('SELECT username FROM users WHERE username = ?', ('admin',))
+    if not cursor.fetchone():
+        cursor.execute(
+            'INSERT INTO users (username, password, role, name, categories) VALUES (?, ?, ?, ?, ?)',
+            ('admin', 'admin123', 'admin', 'Administrator', '[]')
+        )
+
+    conn.commit()
+    conn.close()
+
+
+# Database helper functions
+def get_user(username):
+    """Get user from database."""
+    db = get_db()
+    cursor = db.execute('SELECT * FROM users WHERE username = ?', (username,))
+    row = cursor.fetchone()
+    if row:
+        return {
+            'password': row['password'],
+            'role': row['role'],
+            'name': row['name'],
+            'categories': json.loads(row['categories'])
+        }
+    return None
+
+
+def get_all_users():
+    """Get all users from database."""
+    db = get_db()
+    cursor = db.execute('SELECT * FROM users')
+    users = {}
+    for row in cursor.fetchall():
+        users[row['username']] = {
+            'password': row['password'],
+            'role': row['role'],
+            'name': row['name'],
+            'categories': json.loads(row['categories'])
+        }
+    return users
+
+
+def save_user(username, user_data):
+    """Save user to database."""
+    db = get_db()
+    categories = json.dumps(user_data.get('categories', []))
+    db.execute('''
+        INSERT OR REPLACE INTO users (username, password, role, name, categories)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (username, user_data['password'], user_data['role'], user_data['name'], categories))
+    db.commit()
+
+
+def delete_user(username):
+    """Delete user from database."""
+    db = get_db()
+    db.execute('DELETE FROM users WHERE username = ?', (username,))
+    db.commit()
+
+
+def get_test_result(result_id):
+    """Get test result from database."""
+    db = get_db()
+    cursor = db.execute('SELECT data FROM test_results WHERE result_id = ?', (result_id,))
+    row = cursor.fetchone()
+    if row:
+        return json.loads(row['data'])
+    return None
+
+
+def get_all_test_results():
+    """Get all test results from database."""
+    db = get_db()
+    cursor = db.execute('SELECT result_id, data FROM test_results')
+    results = {}
+    for row in cursor.fetchall():
+        results[row['result_id']] = json.loads(row['data'])
+    return results
+
+
+def save_test_result(result_id, result_data):
+    """Save test result to database."""
+    db = get_db()
+    db.execute(
+        'INSERT OR REPLACE INTO test_results (result_id, data) VALUES (?, ?)',
+        (result_id, json.dumps(result_data))
+    )
+    db.commit()
+
+
+# Initialize database on startup
+init_db()
 
 
 def login_required(f):
@@ -35,16 +180,65 @@ def proctor_required(f):
     def decorated_function(*args, **kwargs):
         if 'user' not in session:
             return redirect(url_for('login'))
-        if session.get('role') != 'proctor':
+        if session.get('role') not in ['proctor', 'admin']:
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user' not in session:
+            return redirect(url_for('login'))
+        if session.get('role') != 'admin':
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def get_proctor_tests(username, include_general=True):
+    """Get tests available for a proctor based on assigned categories."""
+    user = get_user(username)
+    if not user:
+        return {}
+    if user['role'] == 'admin':
+        return TESTS  # Admin sees all tests
+
+    available_tests = {}
+
+    # Include general test only if requested (for results viewing, not answer keys)
+    if include_general and GENERAL_TEST_ID in TESTS:
+        available_tests[GENERAL_TEST_ID] = TESTS[GENERAL_TEST_ID]
+
+    # Add category-specific tests (tests the proctor can administer)
+    categories = user.get('categories', [])
+    for cat_id in categories:
+        if cat_id in CATEGORIES:
+            for test_id in CATEGORIES[cat_id]['tests']:
+                if test_id in TESTS:
+                    available_tests[test_id] = TESTS[test_id]
+    return available_tests
+
+
+def get_proctor_results(username):
+    """Get test results for tests in proctor's assigned categories."""
+    available_tests = get_proctor_tests(username)
+    all_results = get_all_test_results()
+    return {rid: r for rid, r in all_results.items() if r['test_id'] in available_tests}
 
 
 @app.route('/')
 def index():
     if 'user' not in session:
         return redirect(url_for('login'))
+
+    role = session.get('role')
+    if role == 'admin':
+        return redirect(url_for('admin_dashboard'))
+    elif role == 'proctor':
+        return redirect(url_for('proctor_dashboard'))
+
     return render_template('index.html',
                          user=session.get('user'),
                          role=session.get('role'),
@@ -59,10 +253,11 @@ def login():
         username = request.form.get('username', '').lower()
         password = request.form.get('password', '')
 
-        if username in USERS and USERS[username]['password'] == password:
+        user = get_user(username)
+        if user and user['password'] == password:
             session['user'] = username
-            session['role'] = USERS[username]['role']
-            session['name'] = USERS[username]['name']
+            session['role'] = user['role']
+            session['name'] = user['name']
             return redirect(url_for('index'))
         else:
             error = 'Invalid username or password'
@@ -112,8 +307,6 @@ def submit_test(test_id):
     sections = data.get('sections', {})
 
     # Grade the test
-    # Scoring: 4 points if MC correct, 1 point if MC wrong but reference correct
-    # Total possible: 25 questions × 4 points = 100 points
     total_points = 0
     results = []
 
@@ -153,9 +346,9 @@ def submit_test(test_id):
     score = round((total_points / total_possible) * 100, 1)
     passed = score >= passing_score
 
-    # Store result
+    # Store result in database
     result_id = str(uuid.uuid4())[:8]
-    test_results[result_id] = {
+    save_test_result(result_id, {
         'student': session.get('name'),
         'username': session.get('user'),
         'test_id': test_id,
@@ -168,7 +361,7 @@ def submit_test(test_id):
         'passed': passed,
         'timestamp': datetime.now().isoformat(),
         'results': results
-    }
+    })
 
     return jsonify({
         'result_id': result_id,
@@ -183,14 +376,21 @@ def submit_test(test_id):
 @app.route('/results/<result_id>')
 @login_required
 def view_results(result_id):
-    if result_id not in test_results:
+    result = get_test_result(result_id)
+    if not result:
         return "Results not found", 404
 
-    result = test_results[result_id]
+    role = session.get('role')
 
     # Students can only view their own results
-    if session.get('role') == 'student' and result['username'] != session.get('user'):
+    if role == 'student' and result['username'] != session.get('user'):
         return "Unauthorized", 403
+
+    # Proctors can only view results for their assigned categories
+    if role == 'proctor':
+        available_tests = get_proctor_tests(session.get('user'))
+        if result['test_id'] not in available_tests:
+            return "Unauthorized", 403
 
     return render_template('results.html', result=result, result_id=result_id)
 
@@ -198,7 +398,20 @@ def view_results(result_id):
 @app.route('/proctor')
 @proctor_required
 def proctor_dashboard():
-    return render_template('proctor.html', results=test_results, tests=TESTS)
+    username = session.get('user')
+    available_tests = get_proctor_tests(username)
+    available_results = get_proctor_results(username)
+
+    # Get assigned categories for display (2-letter abbreviations)
+    user = get_user(username) or {}
+    assigned_categories = user.get('categories', [])
+    category_names = [c.upper() for c in assigned_categories if c in CATEGORIES]
+
+    return render_template('proctor.html',
+                         results=available_results,
+                         tests=available_tests,
+                         categories=category_names,
+                         is_admin=(session.get('role') == 'admin'))
 
 
 @app.route('/answer-key/<test_id>')
@@ -206,8 +419,20 @@ def proctor_dashboard():
 def answer_key(test_id):
     if test_id not in TESTS:
         return "Test not found", 404
+
+    # Check if proctor has access to this test
+    username = session.get('user')
+    available_tests = get_proctor_tests(username)
+
+    if test_id not in available_tests:
+        return "Unauthorized", 403
+
     test = TESTS[test_id]
-    return render_template('answer_key.html', questions=test['questions'], test_name=test['name'], test_id=test_id, tests=TESTS)
+    return render_template('answer_key.html',
+                         questions=test['questions'],
+                         test_name=test['name'],
+                         test_id=test_id,
+                         tests=available_tests)
 
 
 @app.route('/proctor/add-student', methods=['POST'])
@@ -221,16 +446,145 @@ def add_student():
     if not username or not password or not name:
         return jsonify({'error': 'All fields required'}), 400
 
-    if username in USERS:
+    if get_user(username):
         return jsonify({'error': 'Username already exists'}), 400
 
-    USERS[username] = {
+    save_user(username, {
         'password': password,
         'role': 'student',
-        'name': name
-    }
+        'name': name,
+        'categories': []
+    })
 
     return jsonify({'success': True, 'message': f'Student {name} added'})
+
+
+@app.route('/change-password', methods=['POST'])
+@login_required
+def change_password():
+    """Allow proctors and admins to change their own password."""
+    if session.get('role') not in ['proctor', 'admin']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.json
+    current_password = data.get('current_password', '')
+    new_password = data.get('new_password', '')
+    confirm_password = data.get('confirm_password', '')
+
+    username = session.get('user')
+
+    if not current_password or not new_password or not confirm_password:
+        return jsonify({'error': 'All fields required'}), 400
+
+    user = get_user(username)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    if user['password'] != current_password:
+        return jsonify({'error': 'Current password is incorrect'}), 400
+
+    if new_password != confirm_password:
+        return jsonify({'error': 'New passwords do not match'}), 400
+
+    if len(new_password) < 6:
+        return jsonify({'error': 'Password must be at least 6 characters'}), 400
+
+    user['password'] = new_password
+    save_user(username, user)
+    return jsonify({'success': True, 'message': 'Password changed successfully'})
+
+
+# Admin routes
+@app.route('/admin')
+@admin_required
+def admin_dashboard():
+    # Get all proctors
+    all_users = get_all_users()
+    proctors = {u: data for u, data in all_users.items() if data['role'] == 'proctor'}
+    all_results = get_all_test_results()
+    return render_template('admin.html',
+                         proctors=proctors,
+                         categories=CATEGORIES,
+                         results=all_results,
+                         tests=TESTS)
+
+
+@app.route('/admin/add-proctor', methods=['POST'])
+@admin_required
+def add_proctor():
+    data = request.json
+    username = data.get('username', '').lower()
+    name = data.get('name', '')
+    categories = data.get('categories', [])
+
+    if not username or not name:
+        return jsonify({'error': 'Username and name are required'}), 400
+
+    if get_user(username):
+        return jsonify({'error': 'Username already exists'}), 400
+
+    # Validate categories
+    valid_categories = [c for c in categories if c in CATEGORIES]
+
+    save_user(username, {
+        'password': 'password',
+        'role': 'proctor',
+        'name': name,
+        'categories': valid_categories
+    })
+
+    return jsonify({'success': True, 'message': f'Proctor {name} added'})
+
+
+@app.route('/admin/update-proctor/<username>', methods=['POST'])
+@admin_required
+def update_proctor(username):
+    user = get_user(username)
+    if not user or user['role'] != 'proctor':
+        return jsonify({'error': 'Proctor not found'}), 404
+
+    data = request.json
+    categories = data.get('categories', [])
+
+    # Validate categories
+    valid_categories = [c for c in categories if c in CATEGORIES]
+    user['categories'] = valid_categories
+
+    # Update password if provided
+    if data.get('password'):
+        user['password'] = data['password']
+
+    # Update name if provided
+    if data.get('name'):
+        user['name'] = data['name']
+
+    save_user(username, user)
+    return jsonify({'success': True, 'message': 'Proctor updated'})
+
+
+@app.route('/admin/delete-proctor/<username>', methods=['POST'])
+@admin_required
+def delete_proctor(username):
+    user = get_user(username)
+    if not user or user['role'] != 'proctor':
+        return jsonify({'error': 'Proctor not found'}), 404
+
+    delete_user(username)
+    return jsonify({'success': True, 'message': 'Proctor deleted'})
+
+
+@app.route('/admin/get-proctor/<username>')
+@admin_required
+def get_proctor_route(username):
+    user = get_user(username)
+    if not user or user['role'] != 'proctor':
+        return jsonify({'error': 'Proctor not found'}), 404
+
+    return jsonify({
+        'username': username,
+        'name': user['name'],
+        'categories': user.get('categories', [])
+    })
 
 
 if __name__ == '__main__':
@@ -239,6 +593,6 @@ if __name__ == '__main__':
     print("\n=== USPA Judge Test ===")
     print(f"Open http://localhost:{port} in your browser")
     print("\nDefault logins:")
-    print("  Proctor: proctor / proctor123")
+    print("  Admin: admin / admin123")
     print("  Student: student / student123\n")
     app.run(debug=debug, host='0.0.0.0', port=port)
