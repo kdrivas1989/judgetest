@@ -276,15 +276,17 @@
         <!-- Database Management Section -->
         <div class="mt-6 bg-white rounded-lg shadow-lg p-6">
             <h2 class="text-xl font-bold text-gray-800 mb-4">Database Management</h2>
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-4 flex-wrap">
                 <button onclick="seedTests()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition">
                     Seed Tests to Database
                 </button>
+                <button onclick="migrateCategories()" class="bg-orange-600 hover:bg-orange-700 text-white font-semibold py-2 px-4 rounded-lg transition">
+                    Migrate Category Data
+                </button>
                 <span id="testCount" class="text-gray-600"></span>
             </div>
-            <p class="text-sm text-gray-500 mt-2">This will copy all default test questions from the code to the database. Required for test editing to work.</p>
+            <p class="text-sm text-gray-500 mt-2">Seed Tests: Copy default questions to database. Migrate Categories: Convert old examiner data to new format with per-category expiration.</p>
             <div id="seedMessage" class="mt-4 hidden"></div>
-            </div>
         </div>
 
         <!-- Answer Keys Section -->
@@ -803,6 +805,39 @@
                 document.getElementById('testCount').textContent = `${data.tests.length} tests in ${data.source}`;
             } catch (error) {
                 console.error('Error loading test count:', error);
+            }
+        }
+
+        // Migrate category data to new format
+        async function migrateCategories() {
+            if (!confirm('This will convert all examiner/trainer category data to the new format with per-category expiration. Continue?')) {
+                return;
+            }
+
+            const messageDiv = document.getElementById('seedMessage');
+
+            try {
+                const response = await fetch('/admin/migrate-categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                    messageDiv.textContent = result.error;
+                } else {
+                    messageDiv.className = 'mt-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded';
+                    messageDiv.textContent = result.message;
+                    setTimeout(() => location.reload(), 1500);
+                }
+                messageDiv.classList.remove('hidden');
+
+            } catch (error) {
+                messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                messageDiv.textContent = 'Error migrating data: ' + error.message;
+                messageDiv.classList.remove('hidden');
             }
         }
 

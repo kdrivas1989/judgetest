@@ -1112,6 +1112,46 @@ def admin_get_tests():
     })
 
 
+@app.route('/admin/migrate-categories', methods=['POST'])
+@admin_required
+def migrate_categories():
+    """One-time migration to convert old category format to new format with per-category expiration."""
+    all_users = get_all_users()
+    migrated = 0
+
+    for username, user_data in all_users.items():
+        if user_data['role'] != 'proctor':
+            continue
+
+        categories = user_data.get('categories', {})
+        needs_migration = False
+        new_categories = {}
+
+        if isinstance(categories, list):
+            # Legacy list format
+            level = user_data.get('proctor_level', 'regional')
+            for cat_id in categories:
+                if cat_id in CATEGORIES:
+                    new_categories[cat_id] = {'level': level, 'expiration': ''}
+            needs_migration = True
+        elif isinstance(categories, dict):
+            for cat_id, cat_data in categories.items():
+                if isinstance(cat_data, dict):
+                    # Already new format
+                    new_categories[cat_id] = cat_data
+                elif cat_data in PROCTOR_LEVELS:
+                    # Old format - just level string
+                    new_categories[cat_id] = {'level': cat_data, 'expiration': ''}
+                    needs_migration = True
+
+        if needs_migration:
+            user_data['categories'] = new_categories
+            save_user(username, user_data)
+            migrated += 1
+
+    return jsonify({'success': True, 'message': f'Migrated {migrated} examiner(s) to new format'})
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV', 'development') == 'development'
