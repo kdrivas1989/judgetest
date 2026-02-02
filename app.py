@@ -18,13 +18,13 @@ DATABASE = os.environ.get('DATABASE_PATH', 'judgetest.db')
 
 # Categories based on chapters
 CATEGORIES = {
-    'al': {'name': 'AL (Accuracy Landing)', 'tests': ['ch8_regional', 'ch8_national']},
-    'fs': {'name': 'FS (Formation Skydiving)', 'tests': ['ch9_regional', 'ch9_national']},
-    'cf': {'name': 'CF (Canopy Formation)', 'tests': ['ch10_regional', 'ch10_national']},
-    'ae': {'name': 'AE (Artistic Events)', 'tests': ['ch11_regional', 'ch11_national']},
-    'cp': {'name': 'CP (Canopy Piloting)', 'tests': ['ch12_13_regional', 'ch12_13_national']},
-    'ws': {'name': 'WS (Wingsuit Flying)', 'tests': ['ch14_regional', 'ch14_national']},
-    'sp': {'name': 'SP (Speed Skydiving)', 'tests': ['ch15_regional', 'ch15_national']},
+    'al': {'name': 'AL', 'tests': ['ch8_regional', 'ch8_national']},
+    'fs': {'name': 'FS', 'tests': ['ch9_regional', 'ch9_national']},
+    'cf': {'name': 'CF', 'tests': ['ch10_regional', 'ch10_national']},
+    'ae': {'name': 'AE', 'tests': ['ch11_regional', 'ch11_national']},
+    'cp': {'name': 'CP', 'tests': ['ch12_13_regional', 'ch12_13_national']},
+    'ws': {'name': 'WS', 'tests': ['ch14_regional', 'ch14_national']},
+    'sp': {'name': 'SP', 'tests': ['ch15_regional', 'ch15_national']},
 }
 
 # General test available to all proctors
