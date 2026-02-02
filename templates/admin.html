@@ -72,13 +72,11 @@
                     <div id="examinerList" class="space-y-3 max-h-80 overflow-y-auto">
                         {% set ns = namespace(has_examiners=false) %}
                         {% for username, proctor in proctors.items() %}
-                            {% set proctor_cats = proctor.get('categories', {}) %}
+                            {% set proctor_cats = proctor.categories if proctor.categories else {} %}
                             {% set ns2 = namespace(is_examiner=false) %}
-                            {% if proctor_cats is mapping %}
-                                {% for cat_id, level in proctor_cats.items() %}
-                                    {% if level == 'examiner' %}{% set ns2.is_examiner = true %}{% endif %}
-                                {% endfor %}
-                            {% endif %}
+                            {% for cat_id, level in proctor_cats.items() if proctor_cats.items is defined %}
+                                {% if level == 'examiner' %}{% set ns2.is_examiner = true %}{% endif %}
+                            {% endfor %}
                             {% if ns2.is_examiner %}
                             {% set ns.has_examiners = true %}
                             <div class="border border-purple-200 rounded-lg p-3 hover:bg-purple-50" data-username="{{ username }}">
@@ -86,12 +84,12 @@
                                     <div class="flex items-center gap-2 flex-wrap">
                                         <span class="font-semibold text-gray-800">{{ proctor.name }}</span>
                                         <span class="text-sm text-gray-500">@{{ username }}</span>
-                                        {% for cat_id, level in proctor_cats.items() %}
+                                        {% for cat_id, level in proctor_cats.items() if proctor_cats.items is defined %}
                                             {% if cat_id in categories and level == 'examiner' %}
                                             <span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">E-{{ categories[cat_id].name }}</span>
                                             {% endif %}
                                         {% endfor %}
-                                        {% if proctor.get('expiration_date') %}
+                                        {% if proctor.expiration_date %}
                                         <span class="text-xs text-gray-500 ml-2">Exp: {{ proctor.expiration_date }}</span>
                                         {% endif %}
                                     </div>
@@ -171,15 +169,13 @@
                     <div id="proctorList" class="space-y-3 max-h-80 overflow-y-auto">
                         {% set tns = namespace(has_trainers=false) %}
                         {% for username, proctor in proctors.items() %}
-                            {% set proctor_cats = proctor.get('categories', {}) %}
+                            {% set proctor_cats = proctor.categories if proctor.categories else {} %}
                             {% set tns2 = namespace(is_trainer=false) %}
-                            {% if proctor_cats is mapping %}
-                                {% for cat_id, level in proctor_cats.items() %}
-                                    {% if level in ['regional', 'national'] %}
-                                        {% set tns2.is_trainer = true %}
-                                    {% endif %}
-                                {% endfor %}
-                            {% endif %}
+                            {% for cat_id, level in proctor_cats.items() if proctor_cats.items is defined %}
+                                {% if level in ['regional', 'national'] %}
+                                    {% set tns2.is_trainer = true %}
+                                {% endif %}
+                            {% endfor %}
                             {% if tns2.is_trainer %}
                             {% set tns.has_trainers = true %}
                             <div class="border border-green-200 rounded-lg p-3 hover:bg-green-50" data-username="{{ username }}">
@@ -187,14 +183,12 @@
                                     <div class="flex items-center gap-2 flex-wrap">
                                         <span class="font-semibold text-gray-800">{{ proctor.name }}</span>
                                         <span class="text-sm text-gray-500">@{{ username }}</span>
-                                        {% if proctor_cats is mapping %}
-                                            {% for cat_id, level in proctor_cats.items() %}
-                                                {% if cat_id in categories and level in ['regional', 'national'] %}
-                                                <span class="{% if level == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{% if level == 'national' %}N{% else %}R{% endif %}-{{ categories[cat_id].name }}</span>
-                                                {% endif %}
-                                            {% endfor %}
-                                        {% endif %}
-                                        {% if proctor.get('expiration_date') %}
+                                        {% for cat_id, level in proctor_cats.items() if proctor_cats.items is defined %}
+                                            {% if cat_id in categories and level in ['regional', 'national'] %}
+                                            <span class="{% if level == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{% if level == 'national' %}N{% else %}R{% endif %}-{{ categories[cat_id].name }}</span>
+                                            {% endif %}
+                                        {% endfor %}
+                                        {% if proctor.expiration_date %}
                                         <span class="text-xs text-gray-500 ml-2">Exp: {{ proctor.expiration_date }}</span>
                                         {% endif %}
                                     </div>
