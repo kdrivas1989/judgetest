@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""USPA Judge Test - Web-based testing application for USPA judges."""
+"""USPA Judge Test - Web-based testing application for USPA judges.
+   Using PostgreSQL for persistent data storage.
+"""
 
 import os
 import uuid
