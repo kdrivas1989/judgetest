@@ -135,7 +135,8 @@ def get_user(username):
                 'name': row['name'],
                 'categories': json.loads(row['categories']) if row['categories'] else [],
                 'assigned_tests': json.loads(row['assigned_tests']) if row.get('assigned_tests') else [],
-                'proctor_level': row.get('proctor_level', 'regional')
+                'proctor_level': row.get('proctor_level', 'regional'),
+                'expiration_date': row.get('expiration_date', '')
             }
         return None
     else:
@@ -145,13 +146,15 @@ def get_user(username):
         if row:
             assigned_tests = row['assigned_tests'] if 'assigned_tests' in row.keys() else '[]'
             proctor_level = row['proctor_level'] if 'proctor_level' in row.keys() else 'regional'
+            expiration_date = row['expiration_date'] if 'expiration_date' in row.keys() else ''
             return {
                 'password': row['password'],
                 'role': row['role'],
                 'name': row['name'],
                 'categories': json.loads(row['categories']),
                 'assigned_tests': json.loads(assigned_tests) if assigned_tests else [],
-                'proctor_level': proctor_level
+                'proctor_level': proctor_level,
+                'expiration_date': expiration_date or ''
             }
         return None
 
@@ -168,7 +171,8 @@ def get_all_users():
                 'name': row['name'],
                 'categories': json.loads(row['categories']) if row['categories'] else [],
                 'assigned_tests': json.loads(row['assigned_tests']) if row.get('assigned_tests') else [],
-                'proctor_level': row.get('proctor_level', 'regional')
+                'proctor_level': row.get('proctor_level', 'regional'),
+                'expiration_date': row.get('expiration_date', '')
             }
         return users
     else:
@@ -178,13 +182,15 @@ def get_all_users():
         for row in cursor.fetchall():
             assigned_tests = row['assigned_tests'] if 'assigned_tests' in row.keys() else '[]'
             proctor_level = row['proctor_level'] if 'proctor_level' in row.keys() else 'regional'
+            expiration_date = row['expiration_date'] if 'expiration_date' in row.keys() else ''
             users[row['username']] = {
                 'password': row['password'],
                 'role': row['role'],
                 'name': row['name'],
                 'categories': json.loads(row['categories']),
                 'assigned_tests': json.loads(assigned_tests) if assigned_tests else [],
-                'proctor_level': proctor_level
+                'proctor_level': proctor_level,
+                'expiration_date': expiration_date or ''
             }
         return users
 
@@ -194,6 +200,7 @@ def save_user(username, user_data):
     categories = json.dumps(user_data.get('categories', []))
     assigned_tests = json.dumps(user_data.get('assigned_tests', []))
     proctor_level = user_data.get('proctor_level', 'regional')
+    expiration_date = user_data.get('expiration_date', '') or None
     if USE_SUPABASE:
         # Try update first, then insert if not exists
         existing = supabase.table('users').select('username').eq('username', username).execute()
@@ -204,7 +211,8 @@ def save_user(username, user_data):
                 'name': user_data['name'],
                 'categories': categories,
                 'assigned_tests': assigned_tests,
-                'proctor_level': proctor_level
+                'proctor_level': proctor_level,
+                'expiration_date': expiration_date
             }).eq('username', username).execute()
         else:
             supabase.table('users').insert({
@@ -214,7 +222,8 @@ def save_user(username, user_data):
                 'name': user_data['name'],
                 'categories': categories,
                 'assigned_tests': assigned_tests,
-                'proctor_level': proctor_level
+                'proctor_level': proctor_level,
+                'expiration_date': expiration_date
             }).execute()
     else:
         db = get_sqlite_db()
@@ -702,6 +711,7 @@ def add_proctor():
     name = data.get('name', '')
     categories = data.get('categories', [])
     proctor_level = data.get('proctor_level', 'regional')
+    expiration_date = data.get('expiration_date', '')
 
     if not username or not name:
         return jsonify({'error': 'Username and name are required'}), 400
@@ -719,10 +729,11 @@ def add_proctor():
         'role': 'proctor',
         'name': name,
         'categories': valid_categories,
-        'proctor_level': proctor_level
+        'proctor_level': proctor_level,
+        'expiration_date': expiration_date
     })
 
-    return jsonify({'success': True, 'message': f'{proctor_level.capitalize()} Proctor {name} added'})
+    return jsonify({'success': True, 'message': f'{proctor_level.capitalize()} Examiner {name} added'})
 
 
 @app.route('/admin/update-proctor/<username>', methods=['POST'])
@@ -730,7 +741,7 @@ def add_proctor():
 def update_proctor(username):
     user = get_user(username)
     if not user or user['role'] != 'proctor':
-        return jsonify({'error': 'Proctor not found'}), 404
+        return jsonify({'error': 'Examiner not found'}), 404
 
     data = request.json
     categories = data.get('categories', [])
@@ -743,6 +754,10 @@ def update_proctor(username):
     if data.get('proctor_level') in PROCTOR_LEVELS:
         user['proctor_level'] = data['proctor_level']
 
+    # Update expiration date if provided (can be empty to clear it)
+    if 'expiration_date' in data:
+        user['expiration_date'] = data['expiration_date']
+
     # Update password if provided
     if data.get('password'):
         user['password'] = data['password']
@@ -752,7 +767,7 @@ def update_proctor(username):
         user['name'] = data['name']
 
     save_user(username, user)
-    return jsonify({'success': True, 'message': 'Proctor updated'})
+    return jsonify({'success': True, 'message': 'Examiner updated'})
 
 
 @app.route('/admin/delete-proctor/<username>', methods=['POST'])
@@ -808,13 +823,14 @@ def admin_delete_student(username):
 def get_proctor_route(username):
     user = get_user(username)
     if not user or user['role'] != 'proctor':
-        return jsonify({'error': 'Proctor not found'}), 404
+        return jsonify({'error': 'Examiner not found'}), 404
 
     return jsonify({
         'username': username,
         'name': user['name'],
         'categories': user.get('categories', []),
-        'proctor_level': user.get('proctor_level', 'regional')
+        'proctor_level': user.get('proctor_level', 'regional'),
+        'expiration_date': user.get('expiration_date', '')
     })
 
 
