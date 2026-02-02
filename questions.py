@@ -4,7 +4,7 @@
 TESTS = {
     "ch8_regional": {
         "name": "Chapter 8: Accuracy Landing - Regional Test",
-        "chapter": "8",
+        "chapter": "AL",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "What is the diameter of the dead-center target on the AMD?", "options": ["1 cm", "2 cm", "3 cm", "5 cm"], "correct": 1, "correct_section": "8.1.3.1.1"},
@@ -36,7 +36,7 @@ TESTS = {
     },
     "ch8_national": {
         "name": "Chapter 8: Accuracy Landing - National Test",
-        "chapter": "8",
+        "chapter": "AL",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "How much may the Meet Director lower Individual Accuracy exit altitude to negotiate weather?", "options": ["200 feet", "300 feet", "400 feet", "500 feet"], "correct": 1, "correct_section": "8.1.5.3"},
@@ -68,7 +68,7 @@ TESTS = {
     },
     "ch9_regional": {
         "name": "Chapter 9: Formation Skydiving - Regional Test",
-        "chapter": "9",
+        "chapter": "FS",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "What is the exit altitude for 4-Way Formation Skydiving?", "options": ["9,500 feet", "10,500 feet", "11,500 feet", "13,000 feet"], "correct": 1, "correct_section": "9.5.2.1"},
@@ -100,7 +100,7 @@ TESTS = {
     },
     "ch9_national": {
         "name": "Chapter 9: Formation Skydiving - National Test",
-        "chapter": "9",
+        "chapter": "FS",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "When 4-Way exit altitude is lowered for weather, what is the reduced working time?", "options": ["15 seconds", "20 seconds", "25 seconds", "30 seconds"], "correct": 1, "correct_section": "9.5.6.4.2"},
@@ -132,7 +132,7 @@ TESTS = {
     },
     "ch10_regional": {
         "name": "Chapter 10: Canopy Formation - Regional Test",
-        "chapter": "10",
+        "chapter": "CF",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "What is the exit altitude for 2-Way Sequential CF?", "options": ["7,000 feet", "8,000 feet", "9,000 feet", "10,000 feet"], "correct": 1, "correct_section": "5.3.1"},
@@ -164,7 +164,7 @@ TESTS = {
     },
     "ch10_national": {
         "name": "Chapter 10: Canopy Formation - National Test",
-        "chapter": "10",
+        "chapter": "CF",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "In 4-Way Rotation, a team receives how many points for each correctly completed formation?", "options": ["One", "Two", "Three", "Four"], "correct": 0, "correct_section": "7.2.2"},
@@ -196,7 +196,7 @@ TESTS = {
     },
     "ch11_regional": {
         "name": "Chapter 11: Artistic Events - Regional Test",
-        "chapter": "11",
+        "chapter": "AE",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "What is the exit altitude for Artistic Events?", "options": ["10,000 feet", "11,000 feet", "12,000 feet", "13,000 feet"], "correct": 3, "correct_section": "1.2.3"},
@@ -228,7 +228,7 @@ TESTS = {
     },
     "ch11_national": {
         "name": "Chapter 11: Artistic Events - National Test",
-        "chapter": "11",
+        "chapter": "AE",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "If tie persists after comparing free rounds, what is compared next?", "options": ["Compulsory rounds", "Last free round", "Highest single round", "Average score"], "correct": 0, "correct_section": "5.3.2.2"},
@@ -260,7 +260,7 @@ TESTS = {
     },
     "ch12_13_regional": {
         "name": "Chapters 12 & 13: Canopy Piloting - Regional Test",
-        "chapter": "12-13",
+        "chapter": "CP",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "What is the minimum exit altitude for CP with 1-2 competitors?", "options": ["1000 meters AGL", "1200 meters AGL", "1500 meters AGL", "2000 meters AGL"], "correct": 1, "correct_section": "3.2.1"},
@@ -292,7 +292,7 @@ TESTS = {
     },
     "ch12_13_national": {
         "name": "Chapters 12 & 13: Canopy Piloting - National Test",
-        "chapter": "12-13",
+        "chapter": "CP",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "In Speed, time is measured to what precision?", "options": ["0.1 seconds", "0.01 seconds", "0.001 seconds", "0.0001 seconds"], "correct": 2, "correct_section": "4.2.3"},
@@ -324,7 +324,7 @@ TESTS = {
     },
     "ch14_regional": {
         "name": "Chapter 14: Wingsuit Flying - Regional Test",
-        "chapter": "14",
+        "chapter": "WS",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "What is the maximum exit altitude for Wingsuit Performance?", "options": ["10,000 feet", "10,500 feet", "11,000 feet", "12,500 feet"], "correct": 2, "correct_section": "5.4.6"},
@@ -356,7 +356,7 @@ TESTS = {
     },
     "ch14_national": {
         "name": "Chapter 14: Wingsuit Flying - National Test",
-        "chapter": "14",
+        "chapter": "WS",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "In WS Performance, what happens if PLD malfunctions (not competitor's fault)?", "options": ["Rejump option offered", "Zero score", "Average of other rounds", "DNF"], "correct": 0, "correct_section": "4.2.11"},
@@ -388,7 +388,7 @@ TESTS = {
     },
     "ch15_regional": {
         "name": "Chapter 15: Speed Skydiving - Regional Test",
-        "chapter": "15",
+        "chapter": "SP",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "What is the standard minimum exit altitude for Speed Skydiving?", "options": ["12,000 feet", "13,000 feet", "14,000 feet", "15,000 feet"], "correct": 1, "correct_section": "5.4.1"},
@@ -420,7 +420,7 @@ TESTS = {
     },
     "general": {
         "name": "Chapters 1-3: General Competition Rules",
-        "chapter": "1-3",
+        "chapter": "GR",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "What is the minimum number of freefall skydives required to compete at a USPA National Skydiving Championships?", "options": ["50 skydives", "75 skydives", "100 skydives", "200 skydives"], "correct": 2, "correct_section": "1.5.2.1"},
@@ -452,7 +452,7 @@ TESTS = {
     },
     "ch15_national": {
         "name": "Chapter 15: Speed Skydiving - National Test",
-        "chapter": "15",
+        "chapter": "SP",
         "passing_score": 75,
         "questions": [
             {"id": 1, "question": "For weather/ATC reasons, the minimum exit altitude may be reduced to what?", "options": ["10,000 feet", "11,000 feet", "12,000 feet", "12,500 feet"], "correct": 1, "correct_section": "5.4.2"},
