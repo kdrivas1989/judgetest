@@ -11,7 +11,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 from functools import wraps
 from questions import TESTS
 
-# Database support
+# Database support - PostgreSQL for production, SQLite for local dev
 import sqlite3  # Always available as fallback
 try:
     import psycopg2
