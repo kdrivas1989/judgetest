@@ -831,21 +831,23 @@ def proctor_dashboard():
     # Add test status to each student
     all_results = get_all_test_results()
     for student_username, student_data in students.items():
-        student_results = {rid: r for rid, r in all_results.items()
-                         if r.get('student_username') == student_username or r.get('student') == student_data['name']}
-        assigned = student_data.get('assigned_tests', [])
-        completed = []
-        for rid, result in student_results.items():
-            test_id = result.get('test_id')
-            if test_id:
-                completed.append({
-                    'test_id': test_id,
-                    'passed': result.get('passed', False),
-                    'score': result.get('score', 0)
-                })
-        student_data['completed_tests'] = completed
-        student_data['tests_completed'] = len(completed)
-        student_data['tests_assigned'] = len(assigned)
+        # Build test_results dict with most recent result for each test
+        test_results = {}
+        for result_id, result in all_results.items():
+            if result.get('username') == student_username:
+                test_id = result.get('test_id')
+                # Keep the most recent result for each test
+                if test_id not in test_results or result.get('timestamp', '') > test_results[test_id].get('timestamp', ''):
+                    test_results[test_id] = {
+                        'score': result.get('score'),
+                        'passed': result.get('passed'),
+                        'chapter': available_tests.get(test_id, {}).get('chapter', ''),
+                        'result_id': result_id,
+                        'timestamp': result.get('timestamp', '')
+                    }
+        student_data['test_results'] = test_results
+        student_data['tests_completed'] = len(test_results)
+        student_data['tests_assigned'] = len(student_data.get('assigned_tests', []))
 
     return render_template('proctor.html',
                          results=available_results,
