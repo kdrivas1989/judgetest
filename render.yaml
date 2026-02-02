@@ -1,7 +1,3 @@
-databases:
-  - name: judgetest-db
-    plan: free
-
 services:
   - type: web
     name: uspa-judge-test
@@ -13,7 +9,3 @@ services:
         value: 3.11.0
       - key: SECRET_KEY
         generateValue: true
-      - key: DATABASE_URL
-        fromDatabase:
-          name: judgetest-db
-          property: connectionString
