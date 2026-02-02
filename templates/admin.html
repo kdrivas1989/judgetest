@@ -19,105 +19,203 @@
     </nav>
 
     <div class="container mx-auto px-4 py-8">
-        <div class="grid lg:grid-cols-2 gap-6">
-            <!-- Add Examiner Section -->
-            <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">Add New Examiner</h2>
-                <form id="addProctorForm" class="space-y-4">
-                    <div>
-                        <label class="block text-gray-700 font-medium mb-2">Full Name</label>
-                        <input type="text" id="proctorName" required
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500"
-                            placeholder="Enter examiner's full name">
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 font-medium mb-2">Username</label>
-                        <input type="text" id="proctorUsername" required
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500"
-                            placeholder="Enter username">
-                        <p class="text-sm text-gray-500 mt-1">Default password: <code class="bg-gray-100 px-1 rounded">password</code></p>
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 font-medium mb-2">Category Ratings</label>
-                        <p class="text-sm text-gray-500 mb-2">R=Regional tests only, N=National (both tests), E=Examiner (both tests + can examine judges)</p>
-                        <div class="grid grid-cols-2 gap-2 border border-gray-200 rounded-lg p-3">
-                            {% for cat_id, cat in categories.items() %}
-                            <div class="flex items-center justify-between gap-2 p-2 hover:bg-gray-50 rounded">
-                                <span class="text-gray-700 font-medium min-w-10">{{ cat.name }}</span>
-                                <select name="cat_{{ cat_id }}" class="category-select px-2 py-1 border border-gray-300 rounded focus:outline-none focus:border-red-500 text-sm">
-                                    <option value="">--</option>
-                                    <option value="regional">Regional</option>
-                                    <option value="national">National</option>
-                                    <option value="examiner">Examiner</option>
-                                </select>
-                            </div>
-                            {% endfor %}
+        <!-- Judge Examiners Section -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-purple-800 mb-4 border-b-2 border-purple-200 pb-2">Judge Examiners</h2>
+            <div class="grid lg:grid-cols-2 gap-6">
+                <!-- Add Judge Examiner -->
+                <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-purple-500">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Add Judge Examiner</h3>
+                    <form id="addExaminerForm" class="space-y-4">
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Full Name</label>
+                            <input type="text" id="examinerName" required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
+                                placeholder="Enter examiner's full name">
                         </div>
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 font-medium mb-2">Expiration Date (Optional)</label>
-                        <input type="date" id="proctorExpiration"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500">
-                    </div>
-                    <button type="submit"
-                        class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition">
-                        Add Examiner
-                    </button>
-                </form>
-                <div id="addMessage" class="mt-4 hidden"></div>
-            </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Username</label>
+                            <input type="text" id="examinerUsername" required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
+                                placeholder="Enter username">
+                            <p class="text-sm text-gray-500 mt-1">Default password: <code class="bg-gray-100 px-1 rounded">password</code></p>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Examiner Categories</label>
+                            <p class="text-sm text-gray-500 mb-2">Select categories this examiner can examine judges for</p>
+                            <div class="grid grid-cols-2 gap-2 border border-gray-200 rounded-lg p-3">
+                                {% for cat_id, cat in categories.items() %}
+                                <label class="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                    <input type="checkbox" name="examiner_cat_{{ cat_id }}" value="{{ cat_id }}"
+                                        class="examiner-cat-checkbox w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
+                                    <span class="text-gray-700">{{ cat.name }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Expiration Date (Optional)</label>
+                            <input type="date" id="examinerExpiration"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500">
+                        </div>
+                        <button type="submit"
+                            class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition">
+                            Add Judge Examiner
+                        </button>
+                    </form>
+                    <div id="addExaminerMessage" class="mt-4 hidden"></div>
+                </div>
 
-            <!-- Existing Examiners Section -->
-            <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">Manage Examiners</h2>
-                <div id="proctorList" class="space-y-3 max-h-96 overflow-y-auto">
-                    {% if proctors %}
+                <!-- Manage Judge Examiners -->
+                <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-purple-500">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Manage Judge Examiners</h3>
+                    <div id="examinerList" class="space-y-3 max-h-80 overflow-y-auto">
+                        {% set has_examiners = [] %}
                         {% for username, proctor in proctors.items() %}
-                        <div class="border rounded-lg p-3 hover:bg-gray-50" data-username="{{ username }}">
-                            <div class="flex justify-between items-center">
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="font-semibold text-gray-800">{{ proctor.name }}</span>
-                                    <span class="text-sm text-gray-500">@{{ username }}</span>
-                                    {% set proctor_cats = proctor.get('categories', {}) %}
-                                    {% if proctor_cats is mapping %}
+                            {% set proctor_cats = proctor.get('categories', {}) %}
+                            {% set is_examiner = false %}
+                            {% if proctor_cats is mapping %}
+                                {% for cat_id, level in proctor_cats.items() %}
+                                    {% if level == 'examiner' %}{% set is_examiner = true %}{% endif %}
+                                {% endfor %}
+                            {% endif %}
+                            {% if is_examiner %}
+                            {% set _ = has_examiners.append(1) %}
+                            <div class="border border-purple-200 rounded-lg p-3 hover:bg-purple-50" data-username="{{ username }}">
+                                <div class="flex justify-between items-center">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="font-semibold text-gray-800">{{ proctor.name }}</span>
+                                        <span class="text-sm text-gray-500">@{{ username }}</span>
                                         {% for cat_id, level in proctor_cats.items() %}
-                                            {% if cat_id in categories %}
-                                            <span class="{% if level == 'examiner' %}bg-purple-100 text-purple-800{% elif level == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{% if level == 'examiner' %}E{% elif level == 'national' %}N{% else %}R{% endif %}-{{ categories[cat_id].name }}</span>
+                                            {% if cat_id in categories and level == 'examiner' %}
+                                            <span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">E-{{ categories[cat_id].name }}</span>
                                             {% endif %}
                                         {% endfor %}
-                                    {% elif proctor_cats is iterable and proctor_cats is not string %}
-                                        {% for cat_id in proctor_cats %}
-                                            {% if cat_id in categories %}
-                                            <span class="{% if proctor.get('proctor_level', 'regional') == 'examiner' %}bg-purple-100 text-purple-800{% elif proctor.get('proctor_level', 'regional') == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{% if proctor.get('proctor_level', 'regional') == 'examiner' %}E{% elif proctor.get('proctor_level', 'regional') == 'national' %}N{% else %}R{% endif %}-{{ categories[cat_id].name }}</span>
-                                            {% endif %}
-                                        {% endfor %}
-                                    {% endif %}
-                                    {% if not proctor_cats %}
-                                    <span class="text-gray-400 text-sm italic">No categories</span>
-                                    {% endif %}
-                                    {% if proctor.get('expiration_date') %}
-                                    <span class="text-xs text-gray-500 ml-2">Exp: {{ proctor.expiration_date }}</span>
-                                    {% endif %}
-                                </div>
-                                <div class="flex gap-2 ml-2">
-                                    <button onclick="editProctor('{{ username }}')"
-                                        class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                                        Edit
-                                    </button>
-                                    <button onclick="deleteProctor('{{ username }}')"
-                                        class="text-red-600 hover:text-red-800 text-sm font-medium">
-                                        Delete
-                                    </button>
+                                        {% if proctor.get('expiration_date') %}
+                                        <span class="text-xs text-gray-500 ml-2">Exp: {{ proctor.expiration_date }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="flex gap-2 ml-2">
+                                        <button onclick="editProctor('{{ username }}')"
+                                            class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</button>
+                                        <button onclick="deleteProctor('{{ username }}')"
+                                            class="text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                            {% endif %}
                         {% endfor %}
-                    {% else %}
-                    <div class="text-center py-8 text-gray-500">
-                        <p>No examiners yet.</p>
-                        <p class="text-sm mt-2">Add an examiner using the form.</p>
+                        {% if not has_examiners %}
+                        <div class="text-center py-8 text-gray-500">
+                            <p>No judge examiners yet.</p>
+                        </div>
+                        {% endif %}
                     </div>
-                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- National and Regional Judge Trainers Section -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-green-800 mb-4 border-b-2 border-green-200 pb-2">Manage National and Regional Judge Trainers</h2>
+            <div class="grid lg:grid-cols-2 gap-6">
+                <!-- Add Judge Trainer -->
+                <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-green-500">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Add Judge Trainer</h3>
+                    <form id="addProctorForm" class="space-y-4">
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Full Name</label>
+                            <input type="text" id="proctorName" required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                placeholder="Enter trainer's full name">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Username</label>
+                            <input type="text" id="proctorUsername" required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                                placeholder="Enter username">
+                            <p class="text-sm text-gray-500 mt-1">Default password: <code class="bg-gray-100 px-1 rounded">password</code></p>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Category Ratings</label>
+                            <p class="text-sm text-gray-500 mb-2">R=Regional tests only, N=National (both tests)</p>
+                            <div class="grid grid-cols-2 gap-2 border border-gray-200 rounded-lg p-3">
+                                {% for cat_id, cat in categories.items() %}
+                                <div class="flex items-center justify-between gap-2 p-2 hover:bg-gray-50 rounded">
+                                    <span class="text-gray-700 font-medium min-w-10">{{ cat.name }}</span>
+                                    <select name="cat_{{ cat_id }}" class="category-select px-2 py-1 border border-gray-300 rounded focus:outline-none focus:border-green-500 text-sm">
+                                        <option value="">--</option>
+                                        <option value="regional">Regional</option>
+                                        <option value="national">National</option>
+                                    </select>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Expiration Date (Optional)</label>
+                            <input type="date" id="proctorExpiration"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500">
+                        </div>
+                        <button type="submit"
+                            class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition">
+                            Add Judge Trainer
+                        </button>
+                    </form>
+                    <div id="addMessage" class="mt-4 hidden"></div>
+                </div>
+
+                <!-- Manage Judge Trainers -->
+                <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-green-500">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Manage Judge Trainers</h3>
+                    <div id="proctorList" class="space-y-3 max-h-80 overflow-y-auto">
+                        {% set has_trainers = [] %}
+                        {% for username, proctor in proctors.items() %}
+                            {% set proctor_cats = proctor.get('categories', {}) %}
+                            {% set is_trainer = false %}
+                            {% set has_examiner_only = true %}
+                            {% if proctor_cats is mapping %}
+                                {% for cat_id, level in proctor_cats.items() %}
+                                    {% if level in ['regional', 'national'] %}
+                                        {% set is_trainer = true %}
+                                        {% set has_examiner_only = false %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                            {% if is_trainer or (proctor_cats is mapping and proctor_cats|length > 0 and not has_examiner_only) %}
+                            {% set _ = has_trainers.append(1) %}
+                            <div class="border border-green-200 rounded-lg p-3 hover:bg-green-50" data-username="{{ username }}">
+                                <div class="flex justify-between items-center">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="font-semibold text-gray-800">{{ proctor.name }}</span>
+                                        <span class="text-sm text-gray-500">@{{ username }}</span>
+                                        {% if proctor_cats is mapping %}
+                                            {% for cat_id, level in proctor_cats.items() %}
+                                                {% if cat_id in categories and level in ['regional', 'national'] %}
+                                                <span class="{% if level == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{% if level == 'national' %}N{% else %}R{% endif %}-{{ categories[cat_id].name }}</span>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
+                                        {% if proctor.get('expiration_date') %}
+                                        <span class="text-xs text-gray-500 ml-2">Exp: {{ proctor.expiration_date }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="flex gap-2 ml-2">
+                                        <button onclick="editProctor('{{ username }}')"
+                                            class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</button>
+                                        <button onclick="deleteProctor('{{ username }}')"
+                                            class="text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                        {% if not has_trainers %}
+                        <div class="text-center py-8 text-gray-500">
+                            <p>No judge trainers yet.</p>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -316,6 +414,7 @@
                 </div>
                 <div>
                     <label class="block text-gray-700 font-medium mb-2">Category Ratings</label>
+                    <p class="text-sm text-gray-500 mb-2">R=Regional, N=National, E=Examiner</p>
                     <div id="editCategories" class="grid grid-cols-2 gap-2 border border-gray-200 rounded-lg p-3">
                         {% for cat_id, cat in categories.items() %}
                         <div class="flex items-center justify-between gap-2 p-2 hover:bg-gray-50 rounded">
@@ -324,6 +423,7 @@
                                 <option value="">--</option>
                                 <option value="regional">Regional</option>
                                 <option value="national">National</option>
+                                <option value="examiner">Examiner</option>
                             </select>
                         </div>
                         {% endfor %}
@@ -349,7 +449,56 @@
     </div>
 
     <script>
-        // Add Proctor
+        // Add Judge Examiner
+        document.getElementById('addExaminerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const name = document.getElementById('examinerName').value;
+            const username = document.getElementById('examinerUsername').value;
+            const expiration_date = document.getElementById('examinerExpiration').value;
+
+            // Collect categories as {cat_id: 'examiner'} for checked boxes
+            const categories = {};
+            document.querySelectorAll('.examiner-cat-checkbox:checked').forEach(cb => {
+                const catId = cb.value;
+                categories[catId] = 'examiner';
+            });
+
+            if (Object.keys(categories).length === 0) {
+                alert('Please select at least one category');
+                return;
+            }
+
+            const messageDiv = document.getElementById('addExaminerMessage');
+
+            try {
+                const response = await fetch('/admin/add-proctor', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, username, categories, expiration_date })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                    messageDiv.textContent = result.error;
+                } else {
+                    messageDiv.className = 'mt-4 bg-purple-100 border border-purple-400 text-purple-700 px-4 py-3 rounded';
+                    messageDiv.textContent = result.message;
+                    document.getElementById('addExaminerForm').reset();
+                    setTimeout(() => location.reload(), 1000);
+                }
+                messageDiv.classList.remove('hidden');
+
+            } catch (error) {
+                messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                messageDiv.textContent = 'Error adding judge examiner: ' + error.message;
+                messageDiv.classList.remove('hidden');
+            }
+        });
+
+        // Add Judge Trainer
         document.getElementById('addProctorForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
