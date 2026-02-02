@@ -49,7 +49,7 @@ def get_db():
             conn_str = DATABASE_URL
             if 'sslmode' not in conn_str:
                 conn_str += '?sslmode=require' if '?' not in conn_str else '&sslmode=require'
-            g.db = psycopg2.connect(conn_str, cursor_factory=RealDictCursor)
+            g.db = psycopg2.connect(conn_str, cursor_factory=RealDictCursor, connect_timeout=10)
         else:
             g.db = sqlite3.connect('judgetest.db')
             g.db.row_factory = sqlite3.Row
@@ -272,8 +272,17 @@ def save_test_result(result_id, result_data):
     db.commit()
 
 
-# Initialize database on startup
-init_db()
+# Initialize database on startup (with error handling for paused databases)
+def safe_init_db():
+    """Try to initialize database, but don't crash if unavailable."""
+    try:
+        init_db()
+        print("Database initialized successfully")
+    except Exception as e:
+        print(f"Warning: Database initialization failed: {e}")
+        print("App will start but database features may not work until DB is available")
+
+safe_init_db()
 
 
 def login_required(f):
