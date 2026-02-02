@@ -77,7 +77,6 @@
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <span class="font-semibold text-gray-800">{{ proctor.name }}</span>
                                     <span class="text-sm text-gray-500">@{{ username }}</span>
-                                    <span class="{% if proctor.get('proctor_level', 'regional') == 'national' %}bg-purple-100 text-purple-800{% else %}bg-green-100 text-green-800{% endif %} text-xs px-2 py-1 rounded font-medium">{{ proctor.get('proctor_level', 'regional')|capitalize }}</span>
                                     {% for cat_id in proctor.get('categories', []) %}
                                         {% if cat_id in categories %}
                                         <span class="{% if proctor.get('proctor_level', 'regional') == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{{ categories[cat_id].name }}</span>
