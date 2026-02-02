@@ -935,8 +935,24 @@ def admin_dashboard():
     proctors = {u: data for u, data in all_users.items() if data['role'] == 'proctor'}
     students = {u: data for u, data in all_users.items() if data['role'] == 'student'}
     all_results = get_all_test_results()
+
+    # Separate examiners (E-level) from trainers (N/R-level)
+    examiners = {}
+    trainers = {}
+    for username, proctor in proctors.items():
+        cats = proctor.get('categories', {})
+        if isinstance(cats, dict):
+            has_examiner = 'examiner' in cats.values()
+            has_trainer = 'regional' in cats.values() or 'national' in cats.values()
+            if has_examiner:
+                examiners[username] = proctor
+            if has_trainer:
+                trainers[username] = proctor
+
     return render_template('admin.html',
                          proctors=proctors,
+                         examiners=examiners,
+                         trainers=trainers,
                          students=students,
                          categories=CATEGORIES,
                          results=all_results,
