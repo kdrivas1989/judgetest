@@ -70,17 +70,17 @@
                 <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-purple-500">
                     <h3 class="text-xl font-bold text-gray-800 mb-4">Manage Judge Examiners</h3>
                     <div id="examinerList" class="space-y-3 max-h-80 overflow-y-auto">
-                        {% set has_examiners = [] %}
+                        {% set ns = namespace(has_examiners=false) %}
                         {% for username, proctor in proctors.items() %}
                             {% set proctor_cats = proctor.get('categories', {}) %}
-                            {% set is_examiner = false %}
+                            {% set ns2 = namespace(is_examiner=false) %}
                             {% if proctor_cats is mapping %}
                                 {% for cat_id, level in proctor_cats.items() %}
-                                    {% if level == 'examiner' %}{% set is_examiner = true %}{% endif %}
+                                    {% if level == 'examiner' %}{% set ns2.is_examiner = true %}{% endif %}
                                 {% endfor %}
                             {% endif %}
-                            {% if is_examiner %}
-                            {% set _ = has_examiners.append(1) %}
+                            {% if ns2.is_examiner %}
+                            {% set ns.has_examiners = true %}
                             <div class="border border-purple-200 rounded-lg p-3 hover:bg-purple-50" data-username="{{ username }}">
                                 <div class="flex justify-between items-center">
                                     <div class="flex items-center gap-2 flex-wrap">
@@ -105,7 +105,7 @@
                             </div>
                             {% endif %}
                         {% endfor %}
-                        {% if not has_examiners %}
+                        {% if not ns.has_examiners %}
                         <div class="text-center py-8 text-gray-500">
                             <p>No judge examiners yet.</p>
                         </div>
@@ -169,21 +169,19 @@
                 <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-green-500">
                     <h3 class="text-xl font-bold text-gray-800 mb-4">Manage Judge Trainers</h3>
                     <div id="proctorList" class="space-y-3 max-h-80 overflow-y-auto">
-                        {% set has_trainers = [] %}
+                        {% set tns = namespace(has_trainers=false) %}
                         {% for username, proctor in proctors.items() %}
                             {% set proctor_cats = proctor.get('categories', {}) %}
-                            {% set is_trainer = false %}
-                            {% set has_examiner_only = true %}
+                            {% set tns2 = namespace(is_trainer=false) %}
                             {% if proctor_cats is mapping %}
                                 {% for cat_id, level in proctor_cats.items() %}
                                     {% if level in ['regional', 'national'] %}
-                                        {% set is_trainer = true %}
-                                        {% set has_examiner_only = false %}
+                                        {% set tns2.is_trainer = true %}
                                     {% endif %}
                                 {% endfor %}
                             {% endif %}
-                            {% if is_trainer or (proctor_cats is mapping and proctor_cats|length > 0 and not has_examiner_only) %}
-                            {% set _ = has_trainers.append(1) %}
+                            {% if tns2.is_trainer %}
+                            {% set tns.has_trainers = true %}
                             <div class="border border-green-200 rounded-lg p-3 hover:bg-green-50" data-username="{{ username }}">
                                 <div class="flex justify-between items-center">
                                     <div class="flex items-center gap-2 flex-wrap">
@@ -210,7 +208,7 @@
                             </div>
                             {% endif %}
                         {% endfor %}
-                        {% if not has_trainers %}
+                        {% if not tns.has_trainers %}
                         <div class="text-center py-8 text-gray-500">
                             <p>No judge trainers yet.</p>
                         </div>
