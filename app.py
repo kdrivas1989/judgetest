@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """USPA Judge Test - Web-based testing application for USPA judges.
-   Using PostgreSQL for persistent data storage.
+   Using Supabase REST API for persistent data storage.
 """
 
 import os
@@ -11,20 +11,24 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 from functools import wraps
 from questions import TESTS
 
-# Database support - PostgreSQL for production, SQLite for local dev
+# Database support - Supabase REST API for production, SQLite for local dev
 import sqlite3  # Always available as fallback
 try:
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
-    USE_POSTGRES = True
+    from supabase import create_client, Client
+    SUPABASE_URL = os.environ.get('SUPABASE_URL')
+    SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
+    if SUPABASE_URL and SUPABASE_KEY:
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        USE_SUPABASE = True
+    else:
+        USE_SUPABASE = False
+        supabase = None
 except ImportError:
-    USE_POSTGRES = False
+    USE_SUPABASE = False
+    supabase = None
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'uspa-judge-test-secret-key-change-in-production')
-
-# Database configuration
-DATABASE_URL = os.environ.get('DATABASE_URL')
 
 # Categories based on chapters
 CATEGORIES = {
@@ -41,18 +45,11 @@ CATEGORIES = {
 GENERAL_TEST_ID = 'general'
 
 
-def get_db():
-    """Get database connection for current request."""
+def get_sqlite_db():
+    """Get SQLite database connection for local development."""
     if 'db' not in g:
-        if USE_POSTGRES and DATABASE_URL:
-            # Add sslmode for Supabase
-            conn_str = DATABASE_URL
-            if 'sslmode' not in conn_str:
-                conn_str += '?sslmode=require' if '?' not in conn_str else '&sslmode=require'
-            g.db = psycopg2.connect(conn_str, cursor_factory=RealDictCursor, connect_timeout=10)
-        else:
-            g.db = sqlite3.connect('judgetest.db')
-            g.db.row_factory = sqlite3.Row
+        g.db = sqlite3.connect('judgetest.db')
+        g.db.row_factory = sqlite3.Row
     return g.db
 
 
@@ -66,46 +63,21 @@ def close_db(exception):
 
 def init_db():
     """Initialize the database with tables and default users."""
-    if USE_POSTGRES and DATABASE_URL:
-        # Add sslmode for Supabase
-        conn_str = DATABASE_URL
-        if 'sslmode' not in conn_str:
-            conn_str += '?sslmode=require' if '?' not in conn_str else '&sslmode=require'
-        conn = psycopg2.connect(conn_str)
-        cursor = conn.cursor()
-
-        # Create users table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY,
-                password TEXT NOT NULL,
-                role TEXT NOT NULL,
-                name TEXT NOT NULL,
-                categories TEXT DEFAULT '[]',
-                assigned_tests TEXT DEFAULT '[]'
-            )
-        ''')
-
-        # Add assigned_tests column if it doesn't exist (migration)
-        cursor.execute('''
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_tests TEXT DEFAULT '[]'
-        ''')
-
-        # Create test_results table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS test_results (
-                result_id TEXT PRIMARY KEY,
-                data TEXT NOT NULL
-            )
-        ''')
-
-        # Add default admin if not exists
-        cursor.execute('SELECT username FROM users WHERE username = %s', ('admin',))
-        if not cursor.fetchone():
-            cursor.execute(
-                'INSERT INTO users (username, password, role, name, categories, assigned_tests) VALUES (%s, %s, %s, %s, %s, %s)',
-                ('admin', 'admin123', 'admin', 'Administrator', '[]', '[]')
-            )
+    if USE_SUPABASE:
+        # For Supabase, check if admin exists and create if not
+        try:
+            result = supabase.table('users').select('username').eq('username', 'admin').execute()
+            if not result.data:
+                supabase.table('users').insert({
+                    'username': 'admin',
+                    'password': 'admin123',
+                    'role': 'admin',
+                    'name': 'Administrator',
+                    'categories': '[]',
+                    'assigned_tests': '[]'
+                }).execute()
+        except Exception as e:
+            print(f"Supabase init error (tables may need to be created manually): {e}")
     else:
         conn = sqlite3.connect('judgetest.db')
         cursor = conn.cursor()
@@ -144,132 +116,167 @@ def init_db():
                 ('admin', 'admin123', 'admin', 'Administrator', '[]', '[]')
             )
 
-    conn.commit()
-    conn.close()
-
-
-# Database helper functions
-def db_execute(query, params=None):
-    """Execute a query with proper placeholder syntax."""
-    db = get_db()
-    if USE_POSTGRES and DATABASE_URL:
-        # PostgreSQL uses %s placeholders
-        cursor = db.cursor()
-        cursor.execute(query, params)
-        return cursor
-    else:
-        # SQLite uses ? placeholders
-        return db.execute(query, params or ())
+        conn.commit()
+        conn.close()
 
 
 def get_user(username):
     """Get user from database."""
-    if USE_POSTGRES and DATABASE_URL:
-        cursor = db_execute('SELECT * FROM users WHERE username = %s', (username,))
+    if USE_SUPABASE:
+        result = supabase.table('users').select('*').eq('username', username).execute()
+        if result.data:
+            row = result.data[0]
+            return {
+                'password': row['password'],
+                'role': row['role'],
+                'name': row['name'],
+                'categories': json.loads(row['categories']) if row['categories'] else [],
+                'assigned_tests': json.loads(row['assigned_tests']) if row.get('assigned_tests') else []
+            }
+        return None
     else:
-        cursor = db_execute('SELECT * FROM users WHERE username = ?', (username,))
-    row = cursor.fetchone()
-    if row:
-        assigned_tests = row.get('assigned_tests', '[]') if isinstance(row, dict) else (row['assigned_tests'] if 'assigned_tests' in row.keys() else '[]')
-        return {
-            'password': row['password'],
-            'role': row['role'],
-            'name': row['name'],
-            'categories': json.loads(row['categories']),
-            'assigned_tests': json.loads(assigned_tests) if assigned_tests else []
-        }
-    return None
+        db = get_sqlite_db()
+        cursor = db.execute('SELECT * FROM users WHERE username = ?', (username,))
+        row = cursor.fetchone()
+        if row:
+            assigned_tests = row['assigned_tests'] if 'assigned_tests' in row.keys() else '[]'
+            return {
+                'password': row['password'],
+                'role': row['role'],
+                'name': row['name'],
+                'categories': json.loads(row['categories']),
+                'assigned_tests': json.loads(assigned_tests) if assigned_tests else []
+            }
+        return None
 
 
 def get_all_users():
     """Get all users from database."""
-    cursor = db_execute('SELECT * FROM users')
-    users = {}
-    for row in cursor.fetchall():
-        assigned_tests = row.get('assigned_tests', '[]') if isinstance(row, dict) else (row['assigned_tests'] if 'assigned_tests' in row.keys() else '[]')
-        users[row['username']] = {
-            'password': row['password'],
-            'role': row['role'],
-            'name': row['name'],
-            'categories': json.loads(row['categories']),
-            'assigned_tests': json.loads(assigned_tests) if assigned_tests else []
-        }
-    return users
+    if USE_SUPABASE:
+        result = supabase.table('users').select('*').execute()
+        users = {}
+        for row in result.data:
+            users[row['username']] = {
+                'password': row['password'],
+                'role': row['role'],
+                'name': row['name'],
+                'categories': json.loads(row['categories']) if row['categories'] else [],
+                'assigned_tests': json.loads(row['assigned_tests']) if row.get('assigned_tests') else []
+            }
+        return users
+    else:
+        db = get_sqlite_db()
+        cursor = db.execute('SELECT * FROM users')
+        users = {}
+        for row in cursor.fetchall():
+            assigned_tests = row['assigned_tests'] if 'assigned_tests' in row.keys() else '[]'
+            users[row['username']] = {
+                'password': row['password'],
+                'role': row['role'],
+                'name': row['name'],
+                'categories': json.loads(row['categories']),
+                'assigned_tests': json.loads(assigned_tests) if assigned_tests else []
+            }
+        return users
 
 
 def save_user(username, user_data):
     """Save user to database."""
-    db = get_db()
     categories = json.dumps(user_data.get('categories', []))
     assigned_tests = json.dumps(user_data.get('assigned_tests', []))
-    if USE_POSTGRES and DATABASE_URL:
-        cursor = db.cursor()
-        cursor.execute('''
-            INSERT INTO users (username, password, role, name, categories, assigned_tests)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (username) DO UPDATE SET
-                password = EXCLUDED.password,
-                role = EXCLUDED.role,
-                name = EXCLUDED.name,
-                categories = EXCLUDED.categories,
-                assigned_tests = EXCLUDED.assigned_tests
-        ''', (username, user_data['password'], user_data['role'], user_data['name'], categories, assigned_tests))
+    if USE_SUPABASE:
+        # Try update first, then insert if not exists
+        existing = supabase.table('users').select('username').eq('username', username).execute()
+        if existing.data:
+            supabase.table('users').update({
+                'password': user_data['password'],
+                'role': user_data['role'],
+                'name': user_data['name'],
+                'categories': categories,
+                'assigned_tests': assigned_tests
+            }).eq('username', username).execute()
+        else:
+            supabase.table('users').insert({
+                'username': username,
+                'password': user_data['password'],
+                'role': user_data['role'],
+                'name': user_data['name'],
+                'categories': categories,
+                'assigned_tests': assigned_tests
+            }).execute()
     else:
+        db = get_sqlite_db()
         db.execute('''
             INSERT OR REPLACE INTO users (username, password, role, name, categories, assigned_tests)
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (username, user_data['password'], user_data['role'], user_data['name'], categories, assigned_tests))
-    db.commit()
+        db.commit()
 
 
 def delete_user(username):
     """Delete user from database."""
-    db = get_db()
-    if USE_POSTGRES and DATABASE_URL:
-        cursor = db.cursor()
-        cursor.execute('DELETE FROM users WHERE username = %s', (username,))
+    if USE_SUPABASE:
+        supabase.table('users').delete().eq('username', username).execute()
     else:
+        db = get_sqlite_db()
         db.execute('DELETE FROM users WHERE username = ?', (username,))
-    db.commit()
+        db.commit()
 
 
 def get_test_result(result_id):
     """Get test result from database."""
-    if USE_POSTGRES and DATABASE_URL:
-        cursor = db_execute('SELECT data FROM test_results WHERE result_id = %s', (result_id,))
+    if USE_SUPABASE:
+        result = supabase.table('test_results').select('data').eq('result_id', result_id).execute()
+        if result.data:
+            return json.loads(result.data[0]['data'])
+        return None
     else:
-        cursor = db_execute('SELECT data FROM test_results WHERE result_id = ?', (result_id,))
-    row = cursor.fetchone()
-    if row:
-        return json.loads(row['data'])
-    return None
+        db = get_sqlite_db()
+        cursor = db.execute('SELECT data FROM test_results WHERE result_id = ?', (result_id,))
+        row = cursor.fetchone()
+        if row:
+            return json.loads(row['data'])
+        return None
 
 
 def get_all_test_results():
     """Get all test results from database."""
-    cursor = db_execute('SELECT result_id, data FROM test_results')
-    results = {}
-    for row in cursor.fetchall():
-        results[row['result_id']] = json.loads(row['data'])
-    return results
+    if USE_SUPABASE:
+        result = supabase.table('test_results').select('result_id, data').execute()
+        results = {}
+        for row in result.data:
+            results[row['result_id']] = json.loads(row['data'])
+        return results
+    else:
+        db = get_sqlite_db()
+        cursor = db.execute('SELECT result_id, data FROM test_results')
+        results = {}
+        for row in cursor.fetchall():
+            results[row['result_id']] = json.loads(row['data'])
+        return results
 
 
 def save_test_result(result_id, result_data):
     """Save test result to database."""
-    db = get_db()
-    if USE_POSTGRES and DATABASE_URL:
-        cursor = db.cursor()
-        cursor.execute('''
-            INSERT INTO test_results (result_id, data)
-            VALUES (%s, %s)
-            ON CONFLICT (result_id) DO UPDATE SET data = EXCLUDED.data
-        ''', (result_id, json.dumps(result_data)))
+    if USE_SUPABASE:
+        # Try update first, then insert if not exists
+        existing = supabase.table('test_results').select('result_id').eq('result_id', result_id).execute()
+        if existing.data:
+            supabase.table('test_results').update({
+                'data': json.dumps(result_data)
+            }).eq('result_id', result_id).execute()
+        else:
+            supabase.table('test_results').insert({
+                'result_id': result_id,
+                'data': json.dumps(result_data)
+            }).execute()
     else:
+        db = get_sqlite_db()
         db.execute(
             'INSERT OR REPLACE INTO test_results (result_id, data) VALUES (?, ?)',
             (result_id, json.dumps(result_data))
         )
-    db.commit()
+        db.commit()
 
 
 # Initialize database on startup (with error handling for paused databases)
