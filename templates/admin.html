@@ -72,7 +72,7 @@
                                         {% for cat_id in proctor.get('categories', []) %}
                                             {% if cat_id in categories %}
                                             <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                                                {{ categories[cat_id].name | replace('Chapter ', 'Ch') | replace('Chapters ', 'Ch') }}
+                                                {{ categories[cat_id].name }}
                                             </span>
                                             {% endif %}
                                         {% endfor %}
