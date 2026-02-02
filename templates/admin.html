@@ -217,7 +217,7 @@
                         <label class="block text-gray-700 font-medium mb-2">Assign Tests</label>
                         <div class="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
                             {% if 'general' in tests %}
-                            <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded bg-blue-50 border border-blue-200">
+                            <label class="flex items-center gap-2 cursor-pointer hover:bg-blue-100 p-1 rounded bg-blue-50">
                                 <input type="checkbox" name="assigned_tests" value="general"
                                     class="w-4 h-4 text-red-600 rounded focus:ring-red-500">
                                 <span class="text-gray-700 text-sm font-medium">{{ tests['general'].name }}</span>
@@ -225,7 +225,9 @@
                             {% endif %}
                             {% for test_id, test in tests.items() %}
                             {% if test_id != 'general' %}
-                            <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                            {% set chapter = test_id.split('_')[0] %}
+                            {% set is_highlighted = chapter in ['ch9', 'ch11', 'ch14'] %}
+                            <label class="flex items-center gap-2 cursor-pointer p-1 rounded {% if is_highlighted %}bg-blue-50 hover:bg-blue-100{% else %}hover:bg-gray-50{% endif %}">
                                 <input type="checkbox" name="assigned_tests" value="{{ test_id }}"
                                     class="w-4 h-4 text-red-600 rounded focus:ring-red-500">
                                 <span class="text-gray-700 text-sm">{{ test.name }}</span>
