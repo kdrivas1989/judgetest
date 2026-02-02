@@ -3,18 +3,26 @@
 
 import os
 import uuid
-import sqlite3
 import json
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, g
 from functools import wraps
 from questions import TESTS
 
+# PostgreSQL support
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    USE_POSTGRES = True
+except ImportError:
+    import sqlite3
+    USE_POSTGRES = False
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'uspa-judge-test-secret-key-change-in-production')
 
 # Database configuration
-DATABASE = os.environ.get('DATABASE_PATH', 'judgetest.db')
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 # Categories based on chapters
 CATEGORIES = {
@@ -34,8 +42,11 @@ GENERAL_TEST_ID = 'general'
 def get_db():
     """Get database connection for current request."""
     if 'db' not in g:
-        g.db = sqlite3.connect(DATABASE)
-        g.db.row_factory = sqlite3.Row
+        if USE_POSTGRES and DATABASE_URL:
+            g.db = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        else:
+            g.db = sqlite3.connect('judgetest.db')
+            g.db.row_factory = sqlite3.Row
     return g.db
 
 
@@ -49,45 +60,91 @@ def close_db(exception):
 
 def init_db():
     """Initialize the database with tables and default users."""
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
+    if USE_POSTGRES and DATABASE_URL:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
 
-    # Create users table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            password TEXT NOT NULL,
-            role TEXT NOT NULL,
-            name TEXT NOT NULL,
-            categories TEXT DEFAULT '[]'
-        )
-    ''')
+        # Create users table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                password TEXT NOT NULL,
+                role TEXT NOT NULL,
+                name TEXT NOT NULL,
+                categories TEXT DEFAULT '[]'
+            )
+        ''')
 
-    # Create test_results table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS test_results (
-            result_id TEXT PRIMARY KEY,
-            data TEXT NOT NULL
-        )
-    ''')
+        # Create test_results table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS test_results (
+                result_id TEXT PRIMARY KEY,
+                data TEXT NOT NULL
+            )
+        ''')
 
-    # Add default admin if not exists
-    cursor.execute('SELECT username FROM users WHERE username = ?', ('admin',))
-    if not cursor.fetchone():
-        cursor.execute(
-            'INSERT INTO users (username, password, role, name, categories) VALUES (?, ?, ?, ?, ?)',
-            ('admin', 'admin123', 'admin', 'Administrator', '[]')
-        )
+        # Add default admin if not exists
+        cursor.execute('SELECT username FROM users WHERE username = %s', ('admin',))
+        if not cursor.fetchone():
+            cursor.execute(
+                'INSERT INTO users (username, password, role, name, categories) VALUES (%s, %s, %s, %s, %s)',
+                ('admin', 'admin123', 'admin', 'Administrator', '[]')
+            )
+    else:
+        conn = sqlite3.connect('judgetest.db')
+        cursor = conn.cursor()
+
+        # Create users table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                password TEXT NOT NULL,
+                role TEXT NOT NULL,
+                name TEXT NOT NULL,
+                categories TEXT DEFAULT '[]'
+            )
+        ''')
+
+        # Create test_results table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS test_results (
+                result_id TEXT PRIMARY KEY,
+                data TEXT NOT NULL
+            )
+        ''')
+
+        # Add default admin if not exists
+        cursor.execute('SELECT username FROM users WHERE username = ?', ('admin',))
+        if not cursor.fetchone():
+            cursor.execute(
+                'INSERT INTO users (username, password, role, name, categories) VALUES (?, ?, ?, ?, ?)',
+                ('admin', 'admin123', 'admin', 'Administrator', '[]')
+            )
 
     conn.commit()
     conn.close()
 
 
 # Database helper functions
+def db_execute(query, params=None):
+    """Execute a query with proper placeholder syntax."""
+    db = get_db()
+    if USE_POSTGRES and DATABASE_URL:
+        # PostgreSQL uses %s placeholders
+        cursor = db.cursor()
+        cursor.execute(query, params)
+        return cursor
+    else:
+        # SQLite uses ? placeholders
+        return db.execute(query, params or ())
+
+
 def get_user(username):
     """Get user from database."""
-    db = get_db()
-    cursor = db.execute('SELECT * FROM users WHERE username = ?', (username,))
+    if USE_POSTGRES and DATABASE_URL:
+        cursor = db_execute('SELECT * FROM users WHERE username = %s', (username,))
+    else:
+        cursor = db_execute('SELECT * FROM users WHERE username = ?', (username,))
     row = cursor.fetchone()
     if row:
         return {
@@ -101,8 +158,7 @@ def get_user(username):
 
 def get_all_users():
     """Get all users from database."""
-    db = get_db()
-    cursor = db.execute('SELECT * FROM users')
+    cursor = db_execute('SELECT * FROM users')
     users = {}
     for row in cursor.fetchall():
         users[row['username']] = {
@@ -118,24 +174,42 @@ def save_user(username, user_data):
     """Save user to database."""
     db = get_db()
     categories = json.dumps(user_data.get('categories', []))
-    db.execute('''
-        INSERT OR REPLACE INTO users (username, password, role, name, categories)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (username, user_data['password'], user_data['role'], user_data['name'], categories))
+    if USE_POSTGRES and DATABASE_URL:
+        cursor = db.cursor()
+        cursor.execute('''
+            INSERT INTO users (username, password, role, name, categories)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (username) DO UPDATE SET
+                password = EXCLUDED.password,
+                role = EXCLUDED.role,
+                name = EXCLUDED.name,
+                categories = EXCLUDED.categories
+        ''', (username, user_data['password'], user_data['role'], user_data['name'], categories))
+    else:
+        db.execute('''
+            INSERT OR REPLACE INTO users (username, password, role, name, categories)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (username, user_data['password'], user_data['role'], user_data['name'], categories))
     db.commit()
 
 
 def delete_user(username):
     """Delete user from database."""
     db = get_db()
-    db.execute('DELETE FROM users WHERE username = ?', (username,))
+    if USE_POSTGRES and DATABASE_URL:
+        cursor = db.cursor()
+        cursor.execute('DELETE FROM users WHERE username = %s', (username,))
+    else:
+        db.execute('DELETE FROM users WHERE username = ?', (username,))
     db.commit()
 
 
 def get_test_result(result_id):
     """Get test result from database."""
-    db = get_db()
-    cursor = db.execute('SELECT data FROM test_results WHERE result_id = ?', (result_id,))
+    if USE_POSTGRES and DATABASE_URL:
+        cursor = db_execute('SELECT data FROM test_results WHERE result_id = %s', (result_id,))
+    else:
+        cursor = db_execute('SELECT data FROM test_results WHERE result_id = ?', (result_id,))
     row = cursor.fetchone()
     if row:
         return json.loads(row['data'])
@@ -144,8 +218,7 @@ def get_test_result(result_id):
 
 def get_all_test_results():
     """Get all test results from database."""
-    db = get_db()
-    cursor = db.execute('SELECT result_id, data FROM test_results')
+    cursor = db_execute('SELECT result_id, data FROM test_results')
     results = {}
     for row in cursor.fetchall():
         results[row['result_id']] = json.loads(row['data'])
@@ -155,10 +228,18 @@ def get_all_test_results():
 def save_test_result(result_id, result_data):
     """Save test result to database."""
     db = get_db()
-    db.execute(
-        'INSERT OR REPLACE INTO test_results (result_id, data) VALUES (?, ?)',
-        (result_id, json.dumps(result_data))
-    )
+    if USE_POSTGRES and DATABASE_URL:
+        cursor = db.cursor()
+        cursor.execute('''
+            INSERT INTO test_results (result_id, data)
+            VALUES (%s, %s)
+            ON CONFLICT (result_id) DO UPDATE SET data = EXCLUDED.data
+        ''', (result_id, json.dumps(result_data)))
+    else:
+        db.execute(
+            'INSERT OR REPLACE INTO test_results (result_id, data) VALUES (?, ?)',
+            (result_id, json.dumps(result_data))
+        )
     db.commit()
 
 
