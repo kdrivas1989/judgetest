@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>USPA Judge Test - Proctor Panel</title>
+    <title>USPA Judge Test - Examiner Panel</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <nav class="bg-purple-600 text-white p-4">
         <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold">USPA Judge Test - Proctor Panel</h1>
+            <h1 class="text-xl font-bold">USPA Judge Test - Examiner Panel</h1>
             <div class="flex items-center gap-4">
                 {% if is_admin %}
                 <a href="/admin" class="bg-purple-700 hover:bg-purple-800 px-4 py-2 rounded">Admin Panel</a>
@@ -41,15 +41,15 @@
         {% endif %}
 
         <div class="grid md:grid-cols-2 gap-6">
-            <!-- Add Student Section -->
+            <!-- Add Candidate Section -->
             <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">Add New Student</h2>
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Add New Candidate</h2>
                 <form id="addStudentForm" class="space-y-4">
                     <div>
                         <label class="block text-gray-700 font-medium mb-2">Full Name</label>
                         <input type="text" id="studentName" required
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
-                            placeholder="Enter student's full name">
+                            placeholder="Enter candidate's full name">
                     </div>
                     <div>
                         <label class="block text-gray-700 font-medium mb-2">Username</label>
@@ -74,11 +74,11 @@
                             </label>
                             {% endfor %}
                         </div>
-                        <p class="text-xs text-gray-500 mt-1">Select tests the student can take</p>
+                        <p class="text-xs text-gray-500 mt-1">Select tests the candidate can take</p>
                     </div>
                     <button type="submit"
                         class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition">
-                        Add Student
+                        Add Candidate
                     </button>
                 </form>
                 <div id="addMessage" class="mt-4 hidden"></div>
@@ -102,9 +102,9 @@
             </div>
         </div>
 
-        <!-- Students Section -->
+        <!-- Candidates Section -->
         <div class="mt-6 bg-white rounded-lg shadow-lg p-6">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">Students</h2>
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Candidates</h2>
             {% if students %}
             <div class="space-y-3 max-h-96 overflow-y-auto">
                 {% for username, student in students.items() %}
@@ -144,7 +144,7 @@
             </div>
             {% else %}
             <div class="text-center py-8 text-gray-500">
-                <p>No students yet.</p>
+                <p>No candidates yet.</p>
             </div>
             {% endif %}
         </div>
@@ -185,7 +185,7 @@
             {% else %}
             <div class="text-center py-8 text-gray-500">
                 <p>No test results yet.</p>
-                <p class="text-sm mt-2">Results will appear here when students complete tests.</p>
+                <p class="text-sm mt-2">Results will appear here when candidates complete tests.</p>
             </div>
             {% endif %}
         </div>
@@ -258,7 +258,7 @@
 
             } catch (error) {
                 messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
-                messageDiv.textContent = 'Error adding student: ' + error.message;
+                messageDiv.textContent = 'Error adding candidate: ' + error.message;
                 messageDiv.classList.remove('hidden');
             }
         });
