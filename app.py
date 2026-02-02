@@ -351,15 +351,17 @@ def get_proctor_tests(username, include_general=True):
         available_tests[GENERAL_TEST_ID] = TESTS[GENERAL_TEST_ID]
 
     # Add category-specific tests filtered by proctor level
+    # Regional proctors: only regional tests
+    # National proctors: both regional and national tests
     categories = user.get('categories', [])
     for cat_id in categories:
         if cat_id in CATEGORIES:
             for test_id in CATEGORIES[cat_id]['tests']:
-                # Filter by proctor level: regional proctors see regional tests, national see national
                 if proctor_level == 'regional' and '_regional' in test_id:
                     if test_id in TESTS:
                         available_tests[test_id] = TESTS[test_id]
-                elif proctor_level == 'national' and '_national' in test_id:
+                elif proctor_level == 'national':
+                    # National proctors can administer both regional and national tests
                     if test_id in TESTS:
                         available_tests[test_id] = TESTS[test_id]
     return available_tests
