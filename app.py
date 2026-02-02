@@ -45,7 +45,11 @@ def get_db():
     """Get database connection for current request."""
     if 'db' not in g:
         if USE_POSTGRES and DATABASE_URL:
-            g.db = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+            # Add sslmode for Supabase
+            conn_str = DATABASE_URL
+            if 'sslmode' not in conn_str:
+                conn_str += '?sslmode=require' if '?' not in conn_str else '&sslmode=require'
+            g.db = psycopg2.connect(conn_str, cursor_factory=RealDictCursor)
         else:
             g.db = sqlite3.connect('judgetest.db')
             g.db.row_factory = sqlite3.Row
@@ -63,7 +67,11 @@ def close_db(exception):
 def init_db():
     """Initialize the database with tables and default users."""
     if USE_POSTGRES and DATABASE_URL:
-        conn = psycopg2.connect(DATABASE_URL)
+        # Add sslmode for Supabase
+        conn_str = DATABASE_URL
+        if 'sslmode' not in conn_str:
+            conn_str += '?sslmode=require' if '?' not in conn_str else '&sslmode=require'
+        conn = psycopg2.connect(conn_str)
         cursor = conn.cursor()
 
         # Create users table
