@@ -1030,6 +1030,23 @@ def admin_dashboard():
     proctors = {u: data for u, data in all_users.items() if data['role'] == 'proctor'}
     students = {u: data for u, data in all_users.items() if data['role'] == 'student'}
     all_results = get_all_test_results()
+    all_tests = get_all_tests()
+
+    # Attach test results to each student
+    for username, student in students.items():
+        student_results = {}
+        for result_id, result in all_results.items():
+            if result.get('username') == username:
+                test_id = result.get('test_id')
+                # Keep the most recent result for each test
+                if test_id not in student_results or result.get('timestamp', '') > student_results[test_id].get('timestamp', ''):
+                    student_results[test_id] = {
+                        'score': result.get('score'),
+                        'passed': result.get('passed'),
+                        'chapter': all_tests.get(test_id, {}).get('chapter', ''),
+                        'result_id': result_id
+                    }
+        student['test_results'] = student_results
 
     # Separate examiners (E-level) from trainers (N/R-level)
     examiners = {}
@@ -1050,7 +1067,7 @@ def admin_dashboard():
                          students=students,
                          categories=CATEGORIES,
                          results=all_results,
-                         tests=get_all_tests())
+                         tests=all_tests)
 
 
 @app.route('/admin/add-proctor', methods=['POST'])
