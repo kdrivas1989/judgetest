@@ -239,11 +239,16 @@ def index():
     elif role == 'proctor':
         return redirect(url_for('proctor_dashboard'))
 
+    # Get student's assigned tests
+    user = get_user(session.get('user'))
+    assigned_tests = user.get('assigned_tests', []) if user else []
+
     return render_template('index.html',
                          user=session.get('user'),
                          role=session.get('role'),
                          name=session.get('name'),
-                         tests=TESTS)
+                         tests=TESTS,
+                         assigned_tests=assigned_tests)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -279,6 +284,12 @@ def take_test(test_id):
 
     if test_id not in TESTS:
         return "Test not found", 404
+
+    # Check if student is assigned this test
+    user = get_user(session.get('user'))
+    assigned_tests = user.get('assigned_tests', []) if user else []
+    if test_id not in assigned_tests:
+        return "You are not assigned to this test", 403
 
     test = TESTS[test_id]
     return render_template('test.html',
@@ -442,6 +453,7 @@ def add_student():
     username = data.get('username', '').lower()
     password = data.get('password', '')
     name = data.get('name', '')
+    assigned_tests = data.get('assigned_tests', [])
 
     if not username or not password or not name:
         return jsonify({'error': 'All fields required'}), 400
@@ -453,10 +465,11 @@ def add_student():
         'password': password,
         'role': 'student',
         'name': name,
-        'categories': []
+        'categories': [],
+        'assigned_tests': assigned_tests
     })
 
-    return jsonify({'success': True, 'message': f'Student {name} added'})
+    return jsonify({'success': True, 'message': f'Student {name} added with {len(assigned_tests)} test(s)'})
 
 
 @app.route('/change-password', methods=['POST'])

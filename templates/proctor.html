@@ -63,6 +63,19 @@
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
                             placeholder="Enter password">
                     </div>
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2">Assign Tests</label>
+                        <div class="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                            {% for test_id, test in tests.items() %}
+                            <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                <input type="checkbox" name="assigned_tests" value="{{ test_id }}"
+                                    class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
+                                <span class="text-gray-700 text-sm">{{ test.name }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">Select tests the student can take</p>
+                    </div>
                     <button type="submit"
                         class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition">
                         Add Student
@@ -168,6 +181,8 @@
             const name = document.getElementById('studentName').value;
             const username = document.getElementById('studentUsername').value;
             const password = document.getElementById('studentPassword').value;
+            const testCheckboxes = document.querySelectorAll('input[name="assigned_tests"]:checked');
+            const assigned_tests = Array.from(testCheckboxes).map(cb => cb.value);
 
             const messageDiv = document.getElementById('addMessage');
 
@@ -175,7 +190,7 @@
                 const response = await fetch('/proctor/add-student', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, username, password })
+                    body: JSON.stringify({ name, username, password, assigned_tests })
                 });
 
                 const result = await response.json();
