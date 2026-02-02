@@ -6,10 +6,44 @@
 import os
 import uuid
 import json
+import re
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, g
 from functools import wraps
 from questions import TESTS as DEFAULT_TESTS  # Fallback for initial seeding
+
+
+def normalize_section_ref(section):
+    """Normalize section reference to allow formatting flexibility.
+
+    Handles variations like:
+    - "8-1.3.1" vs "8.1.3.1" vs "8 1 3 1"
+    - "Section 8-1.3.1" vs "8-1.3.1"
+    - "Sec. 8-1.3.1" vs "8-1.3.1"
+    - Trailing punctuation
+    - Various dash types (em dash, en dash, hyphen)
+    """
+    if not section:
+        return ''
+
+    s = section.strip().lower()
+
+    # Remove common prefixes
+    prefixes = ['section', 'sec.', 'sec', 'ch.', 'ch', 'chapter']
+    for prefix in prefixes:
+        if s.startswith(prefix):
+            s = s[len(prefix):].strip()
+
+    # Normalize various dash types to hyphen
+    s = re.sub(r'[–—−]', '-', s)  # en dash, em dash, minus sign -> hyphen
+
+    # Remove all separators and spaces, keep only alphanumeric
+    s = re.sub(r'[\s.\-_]+', '', s)
+
+    # Remove trailing punctuation
+    s = s.rstrip('.,;:')
+
+    return s
 
 # Database support - Supabase REST API for production, SQLite for local dev
 import sqlite3  # Always available as fallback
@@ -631,11 +665,12 @@ def submit_test(test_id):
     for q in questions:
         q_id = str(q['id'])
         user_answer = answers.get(q_id)
-        user_section = sections.get(q_id, '').strip().lower()
-        correct_section = q['correct_section'].lower()
+        user_section_raw = sections.get(q_id, '')
+        user_section_normalized = normalize_section_ref(user_section_raw)
+        correct_section_normalized = normalize_section_ref(q['correct_section'])
 
         is_correct = user_answer == q['correct']
-        is_section_correct = user_section == correct_section
+        is_section_correct = user_section_normalized == correct_section_normalized
 
         # Calculate points for this question
         # MC correct = 3.5 pts, Reference correct = 0.5 pts (max 4 pts per question)
