@@ -528,9 +528,33 @@ def proctor_dashboard():
     assigned_categories = user.get('categories', [])
     category_names = [c.upper() for c in assigned_categories if c in CATEGORIES]
 
+    # Get all students
+    all_users = get_all_users()
+    students = {u: data for u, data in all_users.items() if data['role'] == 'student'}
+
+    # Add test status to each student
+    all_results = get_all_test_results()
+    for student_username, student_data in students.items():
+        student_results = {rid: r for rid, r in all_results.items()
+                         if r.get('student_username') == student_username or r.get('student') == student_data['name']}
+        assigned = student_data.get('assigned_tests', [])
+        completed = []
+        for rid, result in student_results.items():
+            test_id = result.get('test_id')
+            if test_id:
+                completed.append({
+                    'test_id': test_id,
+                    'passed': result.get('passed', False),
+                    'score': result.get('score', 0)
+                })
+        student_data['completed_tests'] = completed
+        student_data['tests_completed'] = len(completed)
+        student_data['tests_assigned'] = len(assigned)
+
     return render_template('proctor.html',
                          results=available_results,
                          tests=available_tests,
+                         students=students,
                          categories=category_names,
                          is_admin=(session.get('role') == 'admin'))
 

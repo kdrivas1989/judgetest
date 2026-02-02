@@ -102,6 +102,53 @@
             </div>
         </div>
 
+        <!-- Students Section -->
+        <div class="mt-6 bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Students</h2>
+            {% if students %}
+            <div class="space-y-3 max-h-96 overflow-y-auto">
+                {% for username, student in students.items() %}
+                <div class="border rounded-lg p-4 hover:bg-gray-50">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-semibold text-gray-800">{{ student.name }}</p>
+                            <p class="text-sm text-gray-500">@{{ username }}</p>
+                            <div class="mt-2 flex flex-wrap gap-1">
+                                {% for test_id in student.get('assigned_tests', []) %}
+                                    {% set completed = false %}
+                                    {% set passed = false %}
+                                    {% for ct in student.get('completed_tests', []) %}
+                                        {% if ct.test_id == test_id %}
+                                            {% set completed = true %}
+                                            {% set passed = ct.passed %}
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% if test_id in tests %}
+                                    <span class="text-xs px-2 py-1 rounded {% if completed %}{% if passed %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}{% else %}bg-gray-100 text-gray-600{% endif %}">
+                                        {{ tests[test_id].chapter }}
+                                        {% if completed %}{% if passed %}✓{% else %}✗{% endif %}{% endif %}
+                                    </span>
+                                    {% endif %}
+                                {% endfor %}
+                                {% if not student.get('assigned_tests') %}
+                                <span class="text-gray-400 text-sm italic">No tests assigned</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-sm text-gray-600">{{ student.tests_completed }}/{{ student.tests_assigned }} completed</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">
+                <p>No students yet.</p>
+            </div>
+            {% endif %}
+        </div>
+
         <!-- Test Results Section -->
         <div class="mt-6 bg-white rounded-lg shadow-lg p-6">
             <h2 class="text-xl font-bold text-gray-800 mb-4">Test Results</h2>
