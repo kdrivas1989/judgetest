@@ -13,6 +13,7 @@
             <div class="flex items-center gap-4">
                 <span id="progress" class="text-sm">Question 1 of {{ total }}</span>
                 <span id="answered" class="text-sm bg-blue-700 px-3 py-1 rounded">0/{{ total }} answered</span>
+                <span id="flagged" class="text-sm bg-orange-500 text-white px-3 py-1 rounded hidden">0 flagged</span>
                 <span class="text-sm bg-yellow-500 text-yellow-900 px-3 py-1 rounded">{{ passing_score }}% to pass</span>
             </div>
         </div>
@@ -21,11 +22,19 @@
     <div class="container mx-auto px-4 py-6 max-w-3xl">
         <form id="testForm">
             {% for q in questions %}
-            <div class="question-card bg-white rounded-lg shadow-lg p-6 mb-6" data-question="{{ q.id }}">
+            <div class="question-card bg-white rounded-lg shadow-lg p-6 mb-6" data-question="{{ q.id }}" id="question-{{ q.id }}">
                 <div class="flex justify-between items-start mb-4">
                     <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                         Question {{ q.id }}
                     </span>
+                    <button type="button" onclick="toggleFlag({{ q.id }})"
+                        class="flag-btn flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium transition border border-gray-300 text-gray-500 hover:border-orange-400 hover:text-orange-500"
+                        data-flagged="false" id="flag-{{ q.id }}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path>
+                        </svg>
+                        <span class="flag-text">Flag</span>
+                    </button>
                 </div>
 
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">{{ q.question }}</h3>
@@ -68,6 +77,51 @@
     <script>
         const totalQuestions = {{ total }};
         const testId = "{{ test_id }}";
+        const flaggedQuestions = new Set();
+
+        function toggleFlag(questionId) {
+            const btn = document.getElementById(`flag-${questionId}`);
+            const card = document.getElementById(`question-${questionId}`);
+            const isFlagged = btn.dataset.flagged === 'true';
+
+            if (isFlagged) {
+                // Unflag
+                flaggedQuestions.delete(questionId);
+                btn.dataset.flagged = 'false';
+                btn.classList.remove('bg-orange-100', 'border-orange-400', 'text-orange-600');
+                btn.classList.add('border-gray-300', 'text-gray-500');
+                btn.querySelector('.flag-text').textContent = 'Flag';
+                card.classList.remove('ring-2', 'ring-orange-400');
+            } else {
+                // Flag
+                flaggedQuestions.add(questionId);
+                btn.dataset.flagged = 'true';
+                btn.classList.add('bg-orange-100', 'border-orange-400', 'text-orange-600');
+                btn.classList.remove('border-gray-300', 'text-gray-500');
+                btn.querySelector('.flag-text').textContent = 'Flagged';
+                card.classList.add('ring-2', 'ring-orange-400');
+            }
+
+            updateFlagCount();
+        }
+
+        function updateFlagCount() {
+            const flaggedEl = document.getElementById('flagged');
+            if (flaggedQuestions.size > 0) {
+                flaggedEl.textContent = `${flaggedQuestions.size} flagged`;
+                flaggedEl.classList.remove('hidden');
+            } else {
+                flaggedEl.classList.add('hidden');
+            }
+        }
+
+        function goToFirstFlaggedQuestion() {
+            if (flaggedQuestions.size > 0) {
+                const firstFlagged = Math.min(...flaggedQuestions);
+                const card = document.getElementById(`question-${firstFlagged}`);
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
 
         function updateProgress() {
             const mcAnswered = document.querySelectorAll('input[type="radio"]:checked').length;
@@ -86,6 +140,15 @@
 
         async function submitTest() {
             const mcAnswered = document.querySelectorAll('input[type="radio"]:checked').length;
+
+            // Check for flagged questions first
+            if (flaggedQuestions.size > 0) {
+                const flaggedList = Array.from(flaggedQuestions).sort((a, b) => a - b).join(', ');
+                if (!confirm(`You have ${flaggedQuestions.size} flagged question(s): Q${flaggedList}\n\nDo you want to review them before submitting?`)) {
+                    goToFirstFlaggedQuestion();
+                    return;
+                }
+            }
 
             if (mcAnswered < totalQuestions) {
                 if (!confirm(`You have only answered ${mcAnswered} of ${totalQuestions} questions. Submit anyway?`)) {
