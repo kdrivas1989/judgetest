@@ -110,16 +110,16 @@
             </div>
         </div>
 
-        <!-- Add Student Section -->
+        <!-- Add Candidate Section -->
         <div class="mt-6 grid lg:grid-cols-2 gap-6">
             <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">Add New Student</h2>
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Add New Candidate</h2>
                 <form id="addStudentForm" class="space-y-4">
                     <div>
                         <label class="block text-gray-700 font-medium mb-2">Full Name</label>
                         <input type="text" id="studentName" required
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500"
-                            placeholder="Enter student's full name">
+                            placeholder="Enter candidate's full name">
                     </div>
                     <div>
                         <label class="block text-gray-700 font-medium mb-2">Username</label>
@@ -147,15 +147,15 @@
                     </div>
                     <button type="submit"
                         class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition">
-                        Add Student
+                        Add Candidate
                     </button>
                 </form>
                 <div id="addStudentMessage" class="mt-4 hidden"></div>
             </div>
 
-            <!-- Manage Students Section -->
+            <!-- Manage Candidates Section -->
             <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">Manage Students</h2>
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Manage Candidates</h2>
                 <div id="studentList" class="space-y-3 max-h-96 overflow-y-auto">
                     {% if students %}
                         {% for username, student in students.items() %}
@@ -186,7 +186,7 @@
                         {% endfor %}
                     {% else %}
                     <div class="text-center py-8 text-gray-500">
-                        <p>No students yet.</p>
+                        <p>No candidates yet.</p>
                     </div>
                     {% endif %}
                 </div>
@@ -451,7 +451,7 @@
             }
         }
 
-        // Add Student
+        // Add Candidate
         document.getElementById('addStudentForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -485,14 +485,14 @@
 
             } catch (error) {
                 messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
-                messageDiv.textContent = 'Error adding student: ' + error.message;
+                messageDiv.textContent = 'Error adding candidate: ' + error.message;
                 messageDiv.classList.remove('hidden');
             }
         });
 
         // Delete Student
         async function deleteStudent(username) {
-            if (!confirm(`Are you sure you want to delete student "${username}"?`)) {
+            if (!confirm(`Are you sure you want to delete candidate "${username}"?`)) {
                 return;
             }
 
@@ -510,7 +510,7 @@
                 }
 
             } catch (error) {
-                alert('Error deleting student: ' + error.message);
+                alert('Error deleting candidate: ' + error.message);
             }
         }
 
