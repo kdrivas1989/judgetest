@@ -300,6 +300,54 @@ def save_test_result(result_id, result_data):
         db.commit()
 
 
+def get_custom_questions(test_id):
+    """Get custom questions for a test from database."""
+    if USE_SUPABASE:
+        result = supabase.table('custom_questions').select('data').eq('test_id', test_id).execute()
+        if result.data:
+            return json.loads(result.data[0]['data'])
+        return None
+    else:
+        db = get_sqlite_db()
+        cursor = db.execute('SELECT data FROM custom_questions WHERE test_id = ?', (test_id,))
+        row = cursor.fetchone()
+        if row:
+            return json.loads(row['data'])
+        return None
+
+
+def save_custom_questions(test_id, questions_data):
+    """Save custom questions for a test to database."""
+    if USE_SUPABASE:
+        existing = supabase.table('custom_questions').select('test_id').eq('test_id', test_id).execute()
+        if existing.data:
+            supabase.table('custom_questions').update({
+                'data': json.dumps(questions_data)
+            }).eq('test_id', test_id).execute()
+        else:
+            supabase.table('custom_questions').insert({
+                'test_id': test_id,
+                'data': json.dumps(questions_data)
+            }).execute()
+    else:
+        db = get_sqlite_db()
+        db.execute(
+            'INSERT OR REPLACE INTO custom_questions (test_id, data) VALUES (?, ?)',
+            (test_id, json.dumps(questions_data))
+        )
+        db.commit()
+
+
+def get_test_questions(test_id):
+    """Get questions for a test - custom if available, otherwise default."""
+    custom = get_custom_questions(test_id)
+    if custom:
+        return custom
+    if test_id in TESTS:
+        return TESTS[test_id]['questions']
+    return []
+
+
 # Initialize database on startup (with error handling for paused databases)
 def safe_init_db():
     """Try to initialize database, but don't crash if unavailable."""
@@ -447,9 +495,10 @@ def take_test(test_id):
         return "You are not assigned to this test", 403
 
     test = TESTS[test_id]
+    questions = get_test_questions(test_id)
     return render_template('test.html',
-                         questions=test['questions'],
-                         total=len(test['questions']),
+                         questions=questions,
+                         total=len(questions),
                          test_id=test_id,
                          test_name=test['name'],
                          passing_score=test['passing_score'])
@@ -465,7 +514,7 @@ def submit_test(test_id):
         return jsonify({'error': 'Test not found'}), 404
 
     test = TESTS[test_id]
-    questions = test['questions']
+    questions = get_test_questions(test_id)
     passing_score = test['passing_score']
 
     data = request.json
@@ -618,11 +667,85 @@ def answer_key(test_id):
         return "Unauthorized", 403
 
     test = TESTS[test_id]
+    questions = get_test_questions(test_id)
     return render_template('answer_key.html',
-                         questions=test['questions'],
+                         questions=questions,
                          test_name=test['name'],
                          test_id=test_id,
                          tests=available_tests)
+
+
+@app.route('/edit-test/<test_id>')
+@proctor_required
+def edit_test(test_id):
+    if test_id not in TESTS:
+        return "Test not found", 404
+
+    # Check if proctor has access to this test
+    username = session.get('user')
+    available_tests = get_proctor_tests(username)
+
+    if test_id not in available_tests:
+        return "Unauthorized", 403
+
+    test = TESTS[test_id]
+    questions = get_test_questions(test_id)
+    return render_template('edit_test.html',
+                         questions=questions,
+                         test_name=test['name'],
+                         test_id=test_id,
+                         tests=available_tests)
+
+
+@app.route('/save-test/<test_id>', methods=['POST'])
+@proctor_required
+def save_test(test_id):
+    if test_id not in TESTS:
+        return jsonify({'error': 'Test not found'}), 404
+
+    # Check if proctor has access to this test
+    username = session.get('user')
+    available_tests = get_proctor_tests(username)
+
+    if test_id not in available_tests:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.json
+    questions = data.get('questions', [])
+
+    # Validate questions
+    for q in questions:
+        if not q.get('question') or not q.get('options') or len(q['options']) != 4:
+            return jsonify({'error': 'Each question must have text and 4 options'}), 400
+        if q.get('correct') not in [0, 1, 2, 3]:
+            return jsonify({'error': 'Each question must have a valid correct answer (0-3)'}), 400
+
+    save_custom_questions(test_id, questions)
+    return jsonify({'success': True, 'message': f'Test saved with {len(questions)} questions'})
+
+
+@app.route('/reset-test/<test_id>', methods=['POST'])
+@proctor_required
+def reset_test(test_id):
+    if test_id not in TESTS:
+        return jsonify({'error': 'Test not found'}), 404
+
+    # Check if proctor has access to this test
+    username = session.get('user')
+    available_tests = get_proctor_tests(username)
+
+    if test_id not in available_tests:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Delete custom questions to revert to default
+    if USE_SUPABASE:
+        supabase.table('custom_questions').delete().eq('test_id', test_id).execute()
+    else:
+        db = get_sqlite_db()
+        db.execute('DELETE FROM custom_questions WHERE test_id = ?', (test_id,))
+        db.commit()
+
+    return jsonify({'success': True, 'message': 'Test reset to default questions'})
 
 
 @app.route('/proctor/add-student', methods=['POST'])

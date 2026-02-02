@@ -18,10 +18,13 @@
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-xl font-bold">Answer Key</h1>
             <div class="flex items-center gap-4">
+                <a href="/edit-test/{{ test_id }}" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">
+                    Edit Test
+                </a>
                 <button onclick="window.print()" class="bg-purple-700 hover:bg-purple-800 px-4 py-2 rounded">
                     Print Answer Key
                 </button>
-                <a href="/proctor" class="bg-purple-700 hover:bg-purple-800 px-4 py-2 rounded">Back to Proctor Panel</a>
+                <a href="/proctor" class="bg-purple-700 hover:bg-purple-800 px-4 py-2 rounded">Back to Dashboard</a>
             </div>
         </div>
     </nav>

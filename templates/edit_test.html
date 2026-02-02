@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Test - {{ test_name }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-purple-600 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold">Edit Test: {{ test_name }}</h1>
+            <div class="flex items-center gap-4">
+                <a href="/proctor" class="bg-purple-700 hover:bg-purple-800 px-4 py-2 rounded">Back to Dashboard</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-6 max-w-4xl">
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800">Questions (<span id="questionCount">{{ questions|length }}</span>)</h2>
+                <div class="flex gap-2">
+                    <button onclick="addQuestion()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
+                        + Add Question
+                    </button>
+                    <button onclick="resetTest()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded">
+                        Reset to Default
+                    </button>
+                    <button onclick="saveTest()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+            <div id="saveMessage" class="hidden mb-4"></div>
+        </div>
+
+        <div id="questionsContainer">
+            {% for q in questions %}
+            <div class="question-card bg-white rounded-lg shadow-lg p-6 mb-4" data-id="{{ q.id }}">
+                <div class="flex justify-between items-start mb-4">
+                    <span class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
+                        Question <span class="q-number">{{ q.id }}</span>
+                    </span>
+                    <button onclick="deleteQuestion(this)" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-medium mb-2">Question Text</label>
+                    <textarea class="question-text w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" rows="2">{{ q.question }}</textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    {% for option in q.options %}
+                    <div class="flex items-center gap-2">
+                        <input type="radio" name="correct_{{ q.id }}" value="{{ loop.index0 }}" {% if loop.index0 == q.correct %}checked{% endif %} class="correct-radio w-4 h-4 text-green-600">
+                        <input type="text" class="option-input flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" value="{{ option }}" placeholder="Option {{ loop.index }}">
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">Section Reference</label>
+                    <input type="text" class="section-ref w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" value="{{ q.correct_section }}" placeholder="e.g., 8-1.3.1">
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <template id="questionTemplate">
+        <div class="question-card bg-white rounded-lg shadow-lg p-6 mb-4" data-id="">
+            <div class="flex justify-between items-start mb-4">
+                <span class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
+                    Question <span class="q-number"></span>
+                </span>
+                <button onclick="deleteQuestion(this)" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-gray-700 font-medium mb-2">Question Text</label>
+                <textarea class="question-text w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" rows="2" placeholder="Enter question text"></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="flex items-center gap-2">
+                    <input type="radio" name="correct_new" value="0" checked class="correct-radio w-4 h-4 text-green-600">
+                    <input type="text" class="option-input flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" placeholder="Option A">
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="radio" name="correct_new" value="1" class="correct-radio w-4 h-4 text-green-600">
+                    <input type="text" class="option-input flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" placeholder="Option B">
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="radio" name="correct_new" value="2" class="correct-radio w-4 h-4 text-green-600">
+                    <input type="text" class="option-input flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" placeholder="Option C">
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="radio" name="correct_new" value="3" class="correct-radio w-4 h-4 text-green-600">
+                    <input type="text" class="option-input flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" placeholder="Option D">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-gray-700 font-medium mb-2">Section Reference</label>
+                <input type="text" class="section-ref w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500" placeholder="e.g., 8-1.3.1">
+            </div>
+        </div>
+    </template>
+
+    <script>
+        const testId = "{{ test_id }}";
+        let questionCounter = {{ questions|length }};
+
+        function updateQuestionNumbers() {
+            const cards = document.querySelectorAll('.question-card');
+            cards.forEach((card, index) => {
+                const num = index + 1;
+                card.dataset.id = num;
+                card.querySelector('.q-number').textContent = num;
+                // Update radio button names
+                const radios = card.querySelectorAll('.correct-radio');
+                radios.forEach(radio => {
+                    radio.name = `correct_${num}`;
+                });
+            });
+            document.getElementById('questionCount').textContent = cards.length;
+        }
+
+        function addQuestion() {
+            const template = document.getElementById('questionTemplate');
+            const clone = template.content.cloneNode(true);
+            document.getElementById('questionsContainer').appendChild(clone);
+            updateQuestionNumbers();
+            // Scroll to new question
+            const cards = document.querySelectorAll('.question-card');
+            cards[cards.length - 1].scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function deleteQuestion(btn) {
+            if (document.querySelectorAll('.question-card').length <= 1) {
+                alert('Test must have at least one question');
+                return;
+            }
+            if (confirm('Delete this question?')) {
+                btn.closest('.question-card').remove();
+                updateQuestionNumbers();
+            }
+        }
+
+        function collectQuestions() {
+            const questions = [];
+            document.querySelectorAll('.question-card').forEach((card, index) => {
+                const questionText = card.querySelector('.question-text').value.trim();
+                const options = Array.from(card.querySelectorAll('.option-input')).map(input => input.value.trim());
+                const correctRadio = card.querySelector('.correct-radio:checked');
+                const correct = correctRadio ? parseInt(correctRadio.value) : 0;
+                const sectionRef = card.querySelector('.section-ref').value.trim();
+
+                questions.push({
+                    id: index + 1,
+                    question: questionText,
+                    options: options,
+                    correct: correct,
+                    correct_section: sectionRef
+                });
+            });
+            return questions;
+        }
+
+        async function saveTest() {
+            const questions = collectQuestions();
+
+            // Validate
+            for (let i = 0; i < questions.length; i++) {
+                const q = questions[i];
+                if (!q.question) {
+                    alert(`Question ${i + 1} is missing question text`);
+                    return;
+                }
+                if (q.options.some(opt => !opt)) {
+                    alert(`Question ${i + 1} is missing one or more options`);
+                    return;
+                }
+            }
+
+            const messageDiv = document.getElementById('saveMessage');
+
+            try {
+                const response = await fetch(`/save-test/${testId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ questions })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    messageDiv.className = 'mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                    messageDiv.textContent = result.error;
+                } else {
+                    messageDiv.className = 'mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded';
+                    messageDiv.textContent = result.message;
+                }
+                messageDiv.classList.remove('hidden');
+                setTimeout(() => messageDiv.classList.add('hidden'), 3000);
+
+            } catch (error) {
+                messageDiv.className = 'mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                messageDiv.textContent = 'Error saving test: ' + error.message;
+                messageDiv.classList.remove('hidden');
+            }
+        }
+
+        async function resetTest() {
+            if (!confirm('Reset test to default questions? This will delete all custom changes.')) {
+                return;
+            }
+
+            const messageDiv = document.getElementById('saveMessage');
+
+            try {
+                const response = await fetch(`/reset-test/${testId}`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    messageDiv.className = 'mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                    messageDiv.textContent = result.error;
+                    messageDiv.classList.remove('hidden');
+                } else {
+                    location.reload();
+                }
+
+            } catch (error) {
+                messageDiv.className = 'mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                messageDiv.textContent = 'Error resetting test: ' + error.message;
+                messageDiv.classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
