@@ -44,8 +44,8 @@ CATEGORIES = {
 # General test available to all proctors
 GENERAL_TEST_ID = 'general'
 
-# Proctor levels
-PROCTOR_LEVELS = ['regional', 'national']
+# Proctor levels (Regional can only administer Regional tests, National can administer both, Examiner can administer both + examine judges)
+PROCTOR_LEVELS = ['regional', 'national', 'examiner']
 
 
 def get_sqlite_db():
@@ -522,8 +522,8 @@ def get_proctor_tests(username, include_general=True):
                 if cat_level == 'regional' and '_regional' in test_id:
                     if test_id in all_tests:
                         available_tests[test_id] = all_tests[test_id]
-                elif cat_level == 'national':
-                    # National level can administer both regional and national tests
+                elif cat_level in ['national', 'examiner']:
+                    # National and Examiner levels can administer both regional and national tests
                     if test_id in all_tests:
                         available_tests[test_id] = all_tests[test_id]
     return available_tests
