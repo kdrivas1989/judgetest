@@ -38,6 +38,15 @@
                         <p class="text-sm text-gray-500 mt-1">Default password: <code class="bg-gray-100 px-1 rounded">password</code></p>
                     </div>
                     <div>
+                        <label class="block text-gray-700 font-medium mb-2">Proctor Level</label>
+                        <select id="proctorLevel" required
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500">
+                            <option value="regional">Regional</option>
+                            <option value="national">National</option>
+                        </select>
+                        <p class="text-sm text-gray-500 mt-1">Regional proctors can only administer Regional tests, National proctors can only administer National tests</p>
+                    </div>
+                    <div>
                         <label class="block text-gray-700 font-medium mb-2">Assigned Categories</label>
                         <div class="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
                             {% for cat_id, cat in categories.items() %}
@@ -68,6 +77,7 @@
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <span class="font-semibold text-gray-800">{{ proctor.name }}</span>
                                     <span class="text-sm text-gray-500">@{{ username }}</span>
+                                    <span class="{% if proctor.get('proctor_level', 'regional') == 'national' %}bg-purple-100 text-purple-800{% else %}bg-green-100 text-green-800{% endif %} text-xs px-2 py-1 rounded font-medium">{{ proctor.get('proctor_level', 'regional')|capitalize }}</span>
                                     {% for cat_id in proctor.get('categories', []) %}
                                         {% if cat_id in categories %}
                                         <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">{{ categories[cat_id].name }}</span>
@@ -279,6 +289,14 @@
                         placeholder="Enter new password">
                 </div>
                 <div>
+                    <label class="block text-gray-700 font-medium mb-2">Proctor Level</label>
+                    <select id="editProctorLevel"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500">
+                        <option value="regional">Regional</option>
+                        <option value="national">National</option>
+                    </select>
+                </div>
+                <div>
                     <label class="block text-gray-700 font-medium mb-2">Assigned Categories</label>
                     <div id="editCategories" class="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
                         {% for cat_id, cat in categories.items() %}
@@ -311,6 +329,7 @@
 
             const name = document.getElementById('proctorName').value;
             const username = document.getElementById('proctorUsername').value;
+            const proctor_level = document.getElementById('proctorLevel').value;
             const categoryCheckboxes = document.querySelectorAll('input[name="categories"]:checked');
             const categories = Array.from(categoryCheckboxes).map(cb => cb.value);
 
@@ -320,7 +339,7 @@
                 const response = await fetch('/admin/add-proctor', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, username, categories })
+                    body: JSON.stringify({ name, username, categories, proctor_level })
                 });
 
                 const result = await response.json();
@@ -357,6 +376,7 @@
                 document.getElementById('editUsername').value = data.username;
                 document.getElementById('editName').value = data.name;
                 document.getElementById('editPassword').value = '';
+                document.getElementById('editProctorLevel').value = data.proctor_level || 'regional';
 
                 // Reset and set checkboxes
                 document.querySelectorAll('input[name="editCat"]').forEach(cb => {
@@ -382,6 +402,7 @@
             const username = document.getElementById('editUsername').value;
             const name = document.getElementById('editName').value;
             const password = document.getElementById('editPassword').value;
+            const proctor_level = document.getElementById('editProctorLevel').value;
             const categoryCheckboxes = document.querySelectorAll('input[name="editCat"]:checked');
             const categories = Array.from(categoryCheckboxes).map(cb => cb.value);
 
@@ -389,7 +410,7 @@
                 const response = await fetch(`/admin/update-proctor/${username}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, password, categories })
+                    body: JSON.stringify({ name, password, categories, proctor_level })
                 });
 
                 const result = await response.json();

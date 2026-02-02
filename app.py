@@ -44,6 +44,9 @@ CATEGORIES = {
 # General test available to all proctors
 GENERAL_TEST_ID = 'general'
 
+# Proctor levels
+PROCTOR_LEVELS = ['regional', 'national']
+
 
 def get_sqlite_db():
     """Get SQLite database connection for local development."""
@@ -131,7 +134,8 @@ def get_user(username):
                 'role': row['role'],
                 'name': row['name'],
                 'categories': json.loads(row['categories']) if row['categories'] else [],
-                'assigned_tests': json.loads(row['assigned_tests']) if row.get('assigned_tests') else []
+                'assigned_tests': json.loads(row['assigned_tests']) if row.get('assigned_tests') else [],
+                'proctor_level': row.get('proctor_level', 'regional')
             }
         return None
     else:
@@ -140,12 +144,14 @@ def get_user(username):
         row = cursor.fetchone()
         if row:
             assigned_tests = row['assigned_tests'] if 'assigned_tests' in row.keys() else '[]'
+            proctor_level = row['proctor_level'] if 'proctor_level' in row.keys() else 'regional'
             return {
                 'password': row['password'],
                 'role': row['role'],
                 'name': row['name'],
                 'categories': json.loads(row['categories']),
-                'assigned_tests': json.loads(assigned_tests) if assigned_tests else []
+                'assigned_tests': json.loads(assigned_tests) if assigned_tests else [],
+                'proctor_level': proctor_level
             }
         return None
 
@@ -161,7 +167,8 @@ def get_all_users():
                 'role': row['role'],
                 'name': row['name'],
                 'categories': json.loads(row['categories']) if row['categories'] else [],
-                'assigned_tests': json.loads(row['assigned_tests']) if row.get('assigned_tests') else []
+                'assigned_tests': json.loads(row['assigned_tests']) if row.get('assigned_tests') else [],
+                'proctor_level': row.get('proctor_level', 'regional')
             }
         return users
     else:
@@ -170,12 +177,14 @@ def get_all_users():
         users = {}
         for row in cursor.fetchall():
             assigned_tests = row['assigned_tests'] if 'assigned_tests' in row.keys() else '[]'
+            proctor_level = row['proctor_level'] if 'proctor_level' in row.keys() else 'regional'
             users[row['username']] = {
                 'password': row['password'],
                 'role': row['role'],
                 'name': row['name'],
                 'categories': json.loads(row['categories']),
-                'assigned_tests': json.loads(assigned_tests) if assigned_tests else []
+                'assigned_tests': json.loads(assigned_tests) if assigned_tests else [],
+                'proctor_level': proctor_level
             }
         return users
 
@@ -184,6 +193,7 @@ def save_user(username, user_data):
     """Save user to database."""
     categories = json.dumps(user_data.get('categories', []))
     assigned_tests = json.dumps(user_data.get('assigned_tests', []))
+    proctor_level = user_data.get('proctor_level', 'regional')
     if USE_SUPABASE:
         # Try update first, then insert if not exists
         existing = supabase.table('users').select('username').eq('username', username).execute()
@@ -193,7 +203,8 @@ def save_user(username, user_data):
                 'role': user_data['role'],
                 'name': user_data['name'],
                 'categories': categories,
-                'assigned_tests': assigned_tests
+                'assigned_tests': assigned_tests,
+                'proctor_level': proctor_level
             }).eq('username', username).execute()
         else:
             supabase.table('users').insert({
@@ -202,14 +213,15 @@ def save_user(username, user_data):
                 'role': user_data['role'],
                 'name': user_data['name'],
                 'categories': categories,
-                'assigned_tests': assigned_tests
+                'assigned_tests': assigned_tests,
+                'proctor_level': proctor_level
             }).execute()
     else:
         db = get_sqlite_db()
         db.execute('''
-            INSERT OR REPLACE INTO users (username, password, role, name, categories, assigned_tests)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (username, user_data['password'], user_data['role'], user_data['name'], categories, assigned_tests))
+            INSERT OR REPLACE INTO users (username, password, role, name, categories, assigned_tests, proctor_level)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (username, user_data['password'], user_data['role'], user_data['name'], categories, assigned_tests, proctor_level))
         db.commit()
 
 
@@ -324,7 +336,7 @@ def admin_required(f):
 
 
 def get_proctor_tests(username, include_general=True):
-    """Get tests available for a proctor based on assigned categories."""
+    """Get tests available for a proctor based on assigned categories and level."""
     user = get_user(username)
     if not user:
         return {}
@@ -332,18 +344,24 @@ def get_proctor_tests(username, include_general=True):
         return TESTS  # Admin sees all tests
 
     available_tests = {}
+    proctor_level = user.get('proctor_level', 'regional')
 
     # Include general test only if requested (for results viewing, not answer keys)
     if include_general and GENERAL_TEST_ID in TESTS:
         available_tests[GENERAL_TEST_ID] = TESTS[GENERAL_TEST_ID]
 
-    # Add category-specific tests (tests the proctor can administer)
+    # Add category-specific tests filtered by proctor level
     categories = user.get('categories', [])
     for cat_id in categories:
         if cat_id in CATEGORIES:
             for test_id in CATEGORIES[cat_id]['tests']:
-                if test_id in TESTS:
-                    available_tests[test_id] = TESTS[test_id]
+                # Filter by proctor level: regional proctors see regional tests, national see national
+                if proctor_level == 'regional' and '_regional' in test_id:
+                    if test_id in TESTS:
+                        available_tests[test_id] = TESTS[test_id]
+                elif proctor_level == 'national' and '_national' in test_id:
+                    if test_id in TESTS:
+                        available_tests[test_id] = TESTS[test_id]
     return available_tests
 
 
@@ -681,6 +699,7 @@ def add_proctor():
     username = data.get('username', '').lower()
     name = data.get('name', '')
     categories = data.get('categories', [])
+    proctor_level = data.get('proctor_level', 'regional')
 
     if not username or not name:
         return jsonify({'error': 'Username and name are required'}), 400
@@ -688,17 +707,20 @@ def add_proctor():
     if get_user(username):
         return jsonify({'error': 'Username already exists'}), 400
 
-    # Validate categories
+    # Validate categories and proctor level
     valid_categories = [c for c in categories if c in CATEGORIES]
+    if proctor_level not in PROCTOR_LEVELS:
+        proctor_level = 'regional'
 
     save_user(username, {
         'password': 'password',
         'role': 'proctor',
         'name': name,
-        'categories': valid_categories
+        'categories': valid_categories,
+        'proctor_level': proctor_level
     })
 
-    return jsonify({'success': True, 'message': f'Proctor {name} added'})
+    return jsonify({'success': True, 'message': f'{proctor_level.capitalize()} Proctor {name} added'})
 
 
 @app.route('/admin/update-proctor/<username>', methods=['POST'])
@@ -714,6 +736,10 @@ def update_proctor(username):
     # Validate categories
     valid_categories = [c for c in categories if c in CATEGORIES]
     user['categories'] = valid_categories
+
+    # Update proctor level if provided
+    if data.get('proctor_level') in PROCTOR_LEVELS:
+        user['proctor_level'] = data['proctor_level']
 
     # Update password if provided
     if data.get('password'):
@@ -785,7 +811,8 @@ def get_proctor_route(username):
     return jsonify({
         'username': username,
         'name': user['name'],
-        'categories': user.get('categories', [])
+        'categories': user.get('categories', []),
+        'proctor_level': user.get('proctor_level', 'regional')
     })
 
 
