@@ -70,29 +70,19 @@
                 <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-purple-500">
                     <h3 class="text-xl font-bold text-gray-800 mb-4">Manage Judge Examiners</h3>
                     <div id="examinerList" class="space-y-3 max-h-80 overflow-y-auto">
-                        {% set ns = namespace(has_examiners=false) %}
                         {% for username, proctor in proctors.items() %}
-                            {% set proctor_cats = proctor.get('categories', {}) %}
-                            {% set ns2 = namespace(is_examiner=false) %}
-                            {% if proctor_cats is mapping %}
-                                {% for cat_id, level in proctor_cats.items() %}
-                                    {% if level == 'examiner' %}{% set ns2.is_examiner = true %}{% endif %}
-                                {% endfor %}
-                            {% endif %}
-                            {% if ns2.is_examiner %}
-                            {% set ns.has_examiners = true %}
+                            {% set proctor_cats = proctor.get('categories') or {} %}
+                            {% if proctor_cats is mapping and 'examiner' in proctor_cats.values() %}
                             <div class="border border-purple-200 rounded-lg p-3 hover:bg-purple-50" data-username="{{ username }}">
                                 <div class="flex justify-between items-center">
                                     <div class="flex items-center gap-2 flex-wrap">
                                         <span class="font-semibold text-gray-800">{{ proctor.name }}</span>
                                         <span class="text-sm text-gray-500">@{{ username }}</span>
-                                        {% if proctor_cats is mapping %}
-                                            {% for cat_id, level in proctor_cats.items() %}
-                                                {% if cat_id in categories and level == 'examiner' %}
-                                                <span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">E-{{ categories[cat_id].name }}</span>
-                                                {% endif %}
-                                            {% endfor %}
-                                        {% endif %}
+                                        {% for cat_id, level in proctor_cats.items() %}
+                                            {% if cat_id in categories and level == 'examiner' %}
+                                            <span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">E-{{ categories[cat_id].name }}</span>
+                                            {% endif %}
+                                        {% endfor %}
                                         {% if proctor.get('expiration_date') %}
                                         <span class="text-xs text-gray-500 ml-2">Exp: {{ proctor.expiration_date }}</span>
                                         {% endif %}
@@ -106,12 +96,11 @@
                                 </div>
                             </div>
                             {% endif %}
-                        {% endfor %}
-                        {% if not ns.has_examiners %}
+                        {% else %}
                         <div class="text-center py-8 text-gray-500">
                             <p>No judge examiners yet.</p>
                         </div>
-                        {% endif %}
+                        {% endfor %}
                     </div>
                 </div>
             </div>
@@ -171,31 +160,19 @@
                 <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-green-500">
                     <h3 class="text-xl font-bold text-gray-800 mb-4">Manage Judge Trainers</h3>
                     <div id="proctorList" class="space-y-3 max-h-80 overflow-y-auto">
-                        {% set tns = namespace(has_trainers=false) %}
                         {% for username, proctor in proctors.items() %}
-                            {% set proctor_cats = proctor.get('categories', {}) %}
-                            {% set tns2 = namespace(is_trainer=false) %}
-                            {% if proctor_cats is mapping %}
-                                {% for cat_id, level in proctor_cats.items() %}
-                                    {% if level in ['regional', 'national'] %}
-                                        {% set tns2.is_trainer = true %}
-                                    {% endif %}
-                                {% endfor %}
-                            {% endif %}
-                            {% if tns2.is_trainer %}
-                            {% set tns.has_trainers = true %}
+                            {% set proctor_cats = proctor.get('categories') or {} %}
+                            {% if proctor_cats is mapping and ('regional' in proctor_cats.values() or 'national' in proctor_cats.values()) %}
                             <div class="border border-green-200 rounded-lg p-3 hover:bg-green-50" data-username="{{ username }}">
                                 <div class="flex justify-between items-center">
                                     <div class="flex items-center gap-2 flex-wrap">
                                         <span class="font-semibold text-gray-800">{{ proctor.name }}</span>
                                         <span class="text-sm text-gray-500">@{{ username }}</span>
-                                        {% if proctor_cats is mapping %}
-                                            {% for cat_id, level in proctor_cats.items() %}
-                                                {% if cat_id in categories and level in ['regional', 'national'] %}
-                                                <span class="{% if level == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{% if level == 'national' %}N{% else %}R{% endif %}-{{ categories[cat_id].name }}</span>
-                                                {% endif %}
-                                            {% endfor %}
-                                        {% endif %}
+                                        {% for cat_id, level in proctor_cats.items() %}
+                                            {% if cat_id in categories and level in ['regional', 'national'] %}
+                                            <span class="{% if level == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{% if level == 'national' %}N{% else %}R{% endif %}-{{ categories[cat_id].name }}</span>
+                                            {% endif %}
+                                        {% endfor %}
                                         {% if proctor.get('expiration_date') %}
                                         <span class="text-xs text-gray-500 ml-2">Exp: {{ proctor.expiration_date }}</span>
                                         {% endif %}
@@ -209,12 +186,11 @@
                                 </div>
                             </div>
                             {% endif %}
-                        {% endfor %}
-                        {% if not tns.has_trainers %}
+                        {% else %}
                         <div class="text-center py-8 text-gray-500">
                             <p>No judge trainers yet.</p>
                         </div>
-                        {% endif %}
+                        {% endfor %}
                     </div>
                 </div>
             </div>
