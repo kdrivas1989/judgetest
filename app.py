@@ -73,8 +73,14 @@ def init_db():
                 password TEXT NOT NULL,
                 role TEXT NOT NULL,
                 name TEXT NOT NULL,
-                categories TEXT DEFAULT '[]'
+                categories TEXT DEFAULT '[]',
+                assigned_tests TEXT DEFAULT '[]'
             )
+        ''')
+
+        # Add assigned_tests column if it doesn't exist (migration)
+        cursor.execute('''
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_tests TEXT DEFAULT '[]'
         ''')
 
         # Create test_results table
@@ -89,8 +95,8 @@ def init_db():
         cursor.execute('SELECT username FROM users WHERE username = %s', ('admin',))
         if not cursor.fetchone():
             cursor.execute(
-                'INSERT INTO users (username, password, role, name, categories) VALUES (%s, %s, %s, %s, %s)',
-                ('admin', 'admin123', 'admin', 'Administrator', '[]')
+                'INSERT INTO users (username, password, role, name, categories, assigned_tests) VALUES (%s, %s, %s, %s, %s, %s)',
+                ('admin', 'admin123', 'admin', 'Administrator', '[]', '[]')
             )
     else:
         conn = sqlite3.connect('judgetest.db')
@@ -103,9 +109,16 @@ def init_db():
                 password TEXT NOT NULL,
                 role TEXT NOT NULL,
                 name TEXT NOT NULL,
-                categories TEXT DEFAULT '[]'
+                categories TEXT DEFAULT '[]',
+                assigned_tests TEXT DEFAULT '[]'
             )
         ''')
+
+        # Add assigned_tests column if it doesn't exist (migration for SQLite)
+        try:
+            cursor.execute('ALTER TABLE users ADD COLUMN assigned_tests TEXT DEFAULT "[]"')
+        except:
+            pass  # Column already exists
 
         # Create test_results table
         cursor.execute('''
@@ -119,8 +132,8 @@ def init_db():
         cursor.execute('SELECT username FROM users WHERE username = ?', ('admin',))
         if not cursor.fetchone():
             cursor.execute(
-                'INSERT INTO users (username, password, role, name, categories) VALUES (?, ?, ?, ?, ?)',
-                ('admin', 'admin123', 'admin', 'Administrator', '[]')
+                'INSERT INTO users (username, password, role, name, categories, assigned_tests) VALUES (?, ?, ?, ?, ?, ?)',
+                ('admin', 'admin123', 'admin', 'Administrator', '[]', '[]')
             )
 
     conn.commit()
@@ -149,11 +162,13 @@ def get_user(username):
         cursor = db_execute('SELECT * FROM users WHERE username = ?', (username,))
     row = cursor.fetchone()
     if row:
+        assigned_tests = row.get('assigned_tests', '[]') if isinstance(row, dict) else (row['assigned_tests'] if 'assigned_tests' in row.keys() else '[]')
         return {
             'password': row['password'],
             'role': row['role'],
             'name': row['name'],
-            'categories': json.loads(row['categories'])
+            'categories': json.loads(row['categories']),
+            'assigned_tests': json.loads(assigned_tests) if assigned_tests else []
         }
     return None
 
@@ -163,11 +178,13 @@ def get_all_users():
     cursor = db_execute('SELECT * FROM users')
     users = {}
     for row in cursor.fetchall():
+        assigned_tests = row.get('assigned_tests', '[]') if isinstance(row, dict) else (row['assigned_tests'] if 'assigned_tests' in row.keys() else '[]')
         users[row['username']] = {
             'password': row['password'],
             'role': row['role'],
             'name': row['name'],
-            'categories': json.loads(row['categories'])
+            'categories': json.loads(row['categories']),
+            'assigned_tests': json.loads(assigned_tests) if assigned_tests else []
         }
     return users
 
@@ -176,22 +193,24 @@ def save_user(username, user_data):
     """Save user to database."""
     db = get_db()
     categories = json.dumps(user_data.get('categories', []))
+    assigned_tests = json.dumps(user_data.get('assigned_tests', []))
     if USE_POSTGRES and DATABASE_URL:
         cursor = db.cursor()
         cursor.execute('''
-            INSERT INTO users (username, password, role, name, categories)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO users (username, password, role, name, categories, assigned_tests)
+            VALUES (%s, %s, %s, %s, %s, %s)
             ON CONFLICT (username) DO UPDATE SET
                 password = EXCLUDED.password,
                 role = EXCLUDED.role,
                 name = EXCLUDED.name,
-                categories = EXCLUDED.categories
-        ''', (username, user_data['password'], user_data['role'], user_data['name'], categories))
+                categories = EXCLUDED.categories,
+                assigned_tests = EXCLUDED.assigned_tests
+        ''', (username, user_data['password'], user_data['role'], user_data['name'], categories, assigned_tests))
     else:
         db.execute('''
-            INSERT OR REPLACE INTO users (username, password, role, name, categories)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (username, user_data['password'], user_data['role'], user_data['name'], categories))
+            INSERT OR REPLACE INTO users (username, password, role, name, categories, assigned_tests)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (username, user_data['password'], user_data['role'], user_data['name'], categories, assigned_tests))
     db.commit()
 
 
