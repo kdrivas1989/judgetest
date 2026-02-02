@@ -79,7 +79,7 @@
                                     <span class="text-sm text-gray-500">@{{ username }}</span>
                                     {% for cat_id in proctor.get('categories', []) %}
                                         {% if cat_id in categories %}
-                                        <span class="{% if proctor.get('proctor_level', 'regional') == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{{ categories[cat_id].name }}</span>
+                                        <span class="{% if proctor.get('proctor_level', 'regional') == 'national' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %} text-xs px-2 py-1 rounded">{% if proctor.get('proctor_level', 'regional') == 'national' %}N{% else %}R{% endif %}-{{ categories[cat_id].name }}</span>
                                         {% endif %}
                                     {% endfor %}
                                     {% if not proctor.get('categories') %}
