@@ -1062,6 +1062,42 @@ def admin_dashboard():
             if 'regional' in levels or 'national' in levels:
                 trainers[username] = proctor
 
+    # Check if tests need seeding (compare DB tests with defaults)
+    needs_seeding = False
+    for test_id, default_test in DEFAULT_TESTS.items():
+        db_test = all_tests.get(test_id)
+        if not db_test:
+            needs_seeding = True
+            break
+        # Compare question count or content hash
+        db_questions = db_test.get('questions', [])
+        default_questions = default_test.get('questions', [])
+        if len(db_questions) != len(default_questions):
+            needs_seeding = True
+            break
+        # Simple check: compare first question text if exists
+        if db_questions and default_questions:
+            if db_questions[0].get('question') != default_questions[0].get('question'):
+                needs_seeding = True
+                break
+
+    # Check if any examiners need category migration
+    needs_migration = False
+    for username, user_data in all_users.items():
+        if user_data['role'] != 'proctor':
+            continue
+        categories = user_data.get('categories', {})
+        if isinstance(categories, list):
+            needs_migration = True
+            break
+        elif isinstance(categories, dict):
+            for cat_id, cat_data in categories.items():
+                if not isinstance(cat_data, dict):
+                    needs_migration = True
+                    break
+            if needs_migration:
+                break
+
     return render_template('admin.html',
                          proctors=proctors,
                          examiners=examiners,
@@ -1069,7 +1105,9 @@ def admin_dashboard():
                          students=students,
                          categories=CATEGORIES,
                          results=all_results,
-                         tests=all_tests)
+                         tests=all_tests,
+                         needs_seeding=needs_seeding,
+                         needs_migration=needs_migration)
 
 
 @app.route('/admin/add-proctor', methods=['POST'])
