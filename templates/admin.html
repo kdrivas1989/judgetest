@@ -200,6 +200,20 @@
             </div>
         </div>
 
+        <!-- Database Management Section -->
+        <div class="mt-6 bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Database Management</h2>
+            <div class="flex items-center gap-4">
+                <button onclick="seedTests()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition">
+                    Seed Tests to Database
+                </button>
+                <span id="testCount" class="text-gray-600"></span>
+            </div>
+            <p class="text-sm text-gray-500 mt-2">This will copy all default test questions from the code to the database. Required for test editing to work.</p>
+            <div id="seedMessage" class="mt-4 hidden"></div>
+            </div>
+        </div>
+
         <!-- Answer Keys Section -->
         <div class="mt-6 bg-white rounded-lg shadow-lg p-6">
             <h2 class="text-xl font-bold text-gray-800 mb-4">All Answer Keys</h2>
@@ -591,6 +605,53 @@
                 closePasswordModal();
             }
         });
+
+        // Seed tests to database
+        async function seedTests() {
+            if (!confirm('This will copy all default test questions to the database. Continue?')) {
+                return;
+            }
+
+            const messageDiv = document.getElementById('seedMessage');
+
+            try {
+                const response = await fetch('/admin/seed-tests', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                    messageDiv.textContent = result.error;
+                } else {
+                    messageDiv.className = 'mt-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded';
+                    messageDiv.textContent = result.message;
+                    loadTestCount();
+                }
+                messageDiv.classList.remove('hidden');
+                setTimeout(() => messageDiv.classList.add('hidden'), 3000);
+
+            } catch (error) {
+                messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                messageDiv.textContent = 'Error seeding tests: ' + error.message;
+                messageDiv.classList.remove('hidden');
+            }
+        }
+
+        // Load test count on page load
+        async function loadTestCount() {
+            try {
+                const response = await fetch('/admin/get-tests');
+                const data = await response.json();
+                document.getElementById('testCount').textContent = `${data.tests.length} tests in ${data.source}`;
+            } catch (error) {
+                console.error('Error loading test count:', error);
+            }
+        }
+
+        loadTestCount();
     </script>
 
     <!-- Change Password Modal -->

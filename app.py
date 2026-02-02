@@ -9,7 +9,7 @@ import json
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, g
 from functools import wraps
-from questions import TESTS
+from questions import TESTS as DEFAULT_TESTS  # Fallback for initial seeding
 
 # Database support - Supabase REST API for production, SQLite for local dev
 import sqlite3  # Always available as fallback
@@ -107,6 +107,25 @@ def init_db():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS test_results (
                 result_id TEXT PRIMARY KEY,
+                data TEXT NOT NULL
+            )
+        ''')
+
+        # Create tests table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS tests (
+                test_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                chapter TEXT NOT NULL,
+                passing_score INTEGER NOT NULL,
+                questions TEXT NOT NULL
+            )
+        ''')
+
+        # Create custom_questions table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS custom_questions (
+                test_id TEXT PRIMARY KEY,
                 data TEXT NOT NULL
             )
         ''')
@@ -339,13 +358,94 @@ def save_custom_questions(test_id, questions_data):
 
 
 def get_test_questions(test_id):
-    """Get questions for a test - custom if available, otherwise default."""
-    custom = get_custom_questions(test_id)
-    if custom:
-        return custom
-    if test_id in TESTS:
-        return TESTS[test_id]['questions']
+    """Get questions for a test from database."""
+    # First try to get from tests table in database
+    test = get_test(test_id)
+    if test and test.get('questions'):
+        return test['questions']
+    # Fallback to default if not in database
+    if test_id in DEFAULT_TESTS:
+        return DEFAULT_TESTS[test_id]['questions']
     return []
+
+
+def get_all_tests():
+    """Get all tests from database, falling back to defaults if not seeded."""
+    if USE_SUPABASE:
+        try:
+            result = supabase.table('tests').select('*').execute()
+            if result.data:
+                tests = {}
+                for row in result.data:
+                    tests[row['test_id']] = {
+                        'name': row['name'],
+                        'chapter': row['chapter'],
+                        'passing_score': row['passing_score'],
+                        'questions': json.loads(row['questions']) if row['questions'] else []
+                    }
+                return tests
+        except Exception as e:
+            print(f"Error loading tests from database: {e}")
+    else:
+        try:
+            db = get_sqlite_db()
+            cursor = db.execute('SELECT * FROM tests')
+            tests = {}
+            for row in cursor.fetchall():
+                tests[row['test_id']] = {
+                    'name': row['name'],
+                    'chapter': row['chapter'],
+                    'passing_score': row['passing_score'],
+                    'questions': json.loads(row['questions']) if row['questions'] else []
+                }
+            if tests:
+                return tests
+        except Exception as e:
+            print(f"Error loading tests from SQLite: {e}")
+    # Fallback to default tests
+    return DEFAULT_TESTS
+
+
+def get_test(test_id):
+    """Get a single test by ID."""
+    tests = get_all_tests()
+    return tests.get(test_id)
+
+
+def save_test(test_id, test_data):
+    """Save a test to database."""
+    if USE_SUPABASE:
+        existing = supabase.table('tests').select('test_id').eq('test_id', test_id).execute()
+        if existing.data:
+            supabase.table('tests').update({
+                'name': test_data['name'],
+                'chapter': test_data['chapter'],
+                'passing_score': test_data['passing_score'],
+                'questions': json.dumps(test_data['questions'])
+            }).eq('test_id', test_id).execute()
+        else:
+            supabase.table('tests').insert({
+                'test_id': test_id,
+                'name': test_data['name'],
+                'chapter': test_data['chapter'],
+                'passing_score': test_data['passing_score'],
+                'questions': json.dumps(test_data['questions'])
+            }).execute()
+    else:
+        db = get_sqlite_db()
+        db.execute('''
+            INSERT OR REPLACE INTO tests (test_id, name, chapter, passing_score, questions)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (test_id, test_data['name'], test_data['chapter'],
+              test_data['passing_score'], json.dumps(test_data['questions'])))
+        db.commit()
+
+
+def seed_tests_to_database():
+    """Seed all default tests to database."""
+    for test_id, test_data in DEFAULT_TESTS.items():
+        save_test(test_id, test_data)
+    return len(DEFAULT_TESTS)
 
 
 # Initialize database on startup (with error handling for paused databases)
@@ -395,17 +495,18 @@ def admin_required(f):
 def get_proctor_tests(username, include_general=True):
     """Get tests available for a proctor based on assigned categories and level."""
     user = get_user(username)
+    all_tests = get_all_tests()
     if not user:
         return {}
     if user['role'] == 'admin':
-        return TESTS  # Admin sees all tests
+        return all_tests  # Admin sees all tests
 
     available_tests = {}
     proctor_level = user.get('proctor_level', 'regional')
 
     # Include general test only if requested (for results viewing, not answer keys)
-    if include_general and GENERAL_TEST_ID in TESTS:
-        available_tests[GENERAL_TEST_ID] = TESTS[GENERAL_TEST_ID]
+    if include_general and GENERAL_TEST_ID in all_tests:
+        available_tests[GENERAL_TEST_ID] = all_tests[GENERAL_TEST_ID]
 
     # Add category-specific tests filtered by proctor level
     # Regional proctors: only regional tests
@@ -415,12 +516,12 @@ def get_proctor_tests(username, include_general=True):
         if cat_id in CATEGORIES:
             for test_id in CATEGORIES[cat_id]['tests']:
                 if proctor_level == 'regional' and '_regional' in test_id:
-                    if test_id in TESTS:
-                        available_tests[test_id] = TESTS[test_id]
+                    if test_id in all_tests:
+                        available_tests[test_id] = all_tests[test_id]
                 elif proctor_level == 'national':
                     # National proctors can administer both regional and national tests
-                    if test_id in TESTS:
-                        available_tests[test_id] = TESTS[test_id]
+                    if test_id in all_tests:
+                        available_tests[test_id] = all_tests[test_id]
     return available_tests
 
 
@@ -450,7 +551,7 @@ def index():
                          user=session.get('user'),
                          role=session.get('role'),
                          name=session.get('name'),
-                         tests=TESTS,
+                         tests=get_all_tests(),
                          assigned_tests=assigned_tests)
 
 
@@ -485,7 +586,8 @@ def take_test(test_id):
     if session.get('role') != 'student':
         return redirect(url_for('index'))
 
-    if test_id not in TESTS:
+    all_tests = get_all_tests()
+    if test_id not in all_tests:
         return "Test not found", 404
 
     # Check if student is assigned this test
@@ -494,7 +596,7 @@ def take_test(test_id):
     if test_id not in assigned_tests:
         return "You are not assigned to this test", 403
 
-    test = TESTS[test_id]
+    test = all_tests[test_id]
     questions = get_test_questions(test_id)
     return render_template('test.html',
                          questions=questions,
@@ -510,10 +612,11 @@ def submit_test(test_id):
     if session.get('role') != 'student':
         return jsonify({'error': 'Unauthorized'}), 403
 
-    if test_id not in TESTS:
+    all_tests = get_all_tests()
+    if test_id not in all_tests:
         return jsonify({'error': 'Test not found'}), 404
 
-    test = TESTS[test_id]
+    test = all_tests[test_id]
     questions = get_test_questions(test_id)
     passing_score = test['passing_score']
 
@@ -656,7 +759,8 @@ def proctor_dashboard():
 @app.route('/answer-key/<test_id>')
 @proctor_required
 def answer_key(test_id):
-    if test_id not in TESTS:
+    all_tests = get_all_tests()
+    if test_id not in all_tests:
         return "Test not found", 404
 
     # Check if proctor has access to this test
@@ -666,7 +770,7 @@ def answer_key(test_id):
     if test_id not in available_tests:
         return "Unauthorized", 403
 
-    test = TESTS[test_id]
+    test = all_tests[test_id]
     questions = get_test_questions(test_id)
     return render_template('answer_key.html',
                          questions=questions,
@@ -678,7 +782,8 @@ def answer_key(test_id):
 @app.route('/edit-test/<test_id>')
 @proctor_required
 def edit_test(test_id):
-    if test_id not in TESTS:
+    all_tests = get_all_tests()
+    if test_id not in all_tests:
         return "Test not found", 404
 
     # Check if proctor has access to this test
@@ -688,7 +793,7 @@ def edit_test(test_id):
     if test_id not in available_tests:
         return "Unauthorized", 403
 
-    test = TESTS[test_id]
+    test = all_tests[test_id]
     questions = get_test_questions(test_id)
     return render_template('edit_test.html',
                          questions=questions,
@@ -699,8 +804,9 @@ def edit_test(test_id):
 
 @app.route('/save-test/<test_id>', methods=['POST'])
 @proctor_required
-def save_test(test_id):
-    if test_id not in TESTS:
+def save_test_questions(test_id):
+    all_tests = get_all_tests()
+    if test_id not in all_tests:
         return jsonify({'error': 'Test not found'}), 404
 
     # Check if proctor has access to this test
@@ -724,14 +830,18 @@ def save_test(test_id):
         if q.get('correct') not in [0, 1, 2, 3]:
             return jsonify({'error': 'Each question must have a valid correct answer (0-3)'}), 400
 
-    save_custom_questions(test_id, questions)
+    # Update the test in the database
+    test = all_tests[test_id]
+    test['questions'] = questions
+    save_test(test_id, test)
     return jsonify({'success': True, 'message': f'Test saved with {len(questions)} questions'})
 
 
 @app.route('/reset-test/<test_id>', methods=['POST'])
 @proctor_required
 def reset_test(test_id):
-    if test_id not in TESTS:
+    all_tests = get_all_tests()
+    if test_id not in all_tests:
         return jsonify({'error': 'Test not found'}), 404
 
     # Check if proctor has access to this test
@@ -741,13 +851,12 @@ def reset_test(test_id):
     if test_id not in available_tests:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # Delete custom questions to revert to default
-    if USE_SUPABASE:
-        supabase.table('custom_questions').delete().eq('test_id', test_id).execute()
-    else:
-        db = get_sqlite_db()
-        db.execute('DELETE FROM custom_questions WHERE test_id = ?', (test_id,))
-        db.commit()
+    # Reset to default questions from questions.py
+    if test_id not in DEFAULT_TESTS:
+        return jsonify({'error': 'No default questions available for this test'}), 404
+
+    default_test = DEFAULT_TESTS[test_id]
+    save_test(test_id, default_test)
 
     return jsonify({'success': True, 'message': 'Test reset to default questions'})
 
@@ -827,7 +936,7 @@ def admin_dashboard():
                          students=students,
                          categories=CATEGORIES,
                          results=all_results,
-                         tests=TESTS)
+                         tests=get_all_tests())
 
 
 @app.route('/admin/add-proctor', methods=['POST'])
@@ -958,6 +1067,30 @@ def get_proctor_route(username):
         'categories': user.get('categories', []),
         'proctor_level': user.get('proctor_level', 'regional'),
         'expiration_date': user.get('expiration_date', '')
+    })
+
+
+@app.route('/admin/seed-tests', methods=['POST'])
+@admin_required
+def admin_seed_tests():
+    """Seed database with default test questions from questions.py."""
+    try:
+        count = seed_tests_to_database()
+        return jsonify({'success': True, 'message': f'Seeded {count} tests to database'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/get-tests')
+@admin_required
+def admin_get_tests():
+    """Get all tests for admin management."""
+    tests = get_all_tests()
+    return jsonify({
+        'tests': [{'id': tid, 'name': t['name'], 'chapter': t['chapter'],
+                   'passing_score': t['passing_score'], 'question_count': len(t.get('questions', []))}
+                  for tid, t in tests.items()],
+        'source': 'database' if USE_SUPABASE else 'local'
     })
 
 
