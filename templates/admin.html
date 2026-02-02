@@ -11,7 +11,7 @@
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-xl font-bold">USPA Judge Test - Admin Panel</h1>
             <div class="flex items-center gap-4">
-                <a href="/proctor" class="bg-red-700 hover:bg-red-800 px-4 py-2 rounded">View as Proctor</a>
+                <a href="/proctor" class="bg-red-700 hover:bg-red-800 px-4 py-2 rounded">View as Examiner</a>
                 <button onclick="openPasswordModal()" class="bg-red-700 hover:bg-red-800 px-4 py-2 rounded">Change Password</button>
                 <a href="/logout" class="bg-red-700 hover:bg-red-800 px-4 py-2 rounded">Logout</a>
             </div>
@@ -20,15 +20,15 @@
 
     <div class="container mx-auto px-4 py-8">
         <div class="grid lg:grid-cols-2 gap-6">
-            <!-- Add Proctor Section -->
+            <!-- Add Examiner Section -->
             <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">Add New Proctor</h2>
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Add New Examiner</h2>
                 <form id="addProctorForm" class="space-y-4">
                     <div>
                         <label class="block text-gray-700 font-medium mb-2">Full Name</label>
                         <input type="text" id="proctorName" required
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500"
-                            placeholder="Enter proctor's full name">
+                            placeholder="Enter examiner's full name">
                     </div>
                     <div>
                         <label class="block text-gray-700 font-medium mb-2">Username</label>
@@ -38,13 +38,13 @@
                         <p class="text-sm text-gray-500 mt-1">Default password: <code class="bg-gray-100 px-1 rounded">password</code></p>
                     </div>
                     <div>
-                        <label class="block text-gray-700 font-medium mb-2">Proctor Level</label>
+                        <label class="block text-gray-700 font-medium mb-2">Examiner Level</label>
                         <select id="proctorLevel" required
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500">
                             <option value="regional">Regional</option>
                             <option value="national">National</option>
                         </select>
-                        <p class="text-sm text-gray-500 mt-1">Regional proctors can only administer Regional tests, National proctors can only administer National tests</p>
+                        <p class="text-sm text-gray-500 mt-1">Regional examiners can only administer Regional tests. National examiners can administer both Regional and National tests.</p>
                     </div>
                     <div>
                         <label class="block text-gray-700 font-medium mb-2">Assigned Categories</label>
@@ -60,15 +60,15 @@
                     </div>
                     <button type="submit"
                         class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition">
-                        Add Proctor
+                        Add Examiner
                     </button>
                 </form>
                 <div id="addMessage" class="mt-4 hidden"></div>
             </div>
 
-            <!-- Existing Proctors Section -->
+            <!-- Existing Examiners Section -->
             <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">Manage Proctors</h2>
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Manage Examiners</h2>
                 <div id="proctorList" class="space-y-3 max-h-96 overflow-y-auto">
                     {% if proctors %}
                         {% for username, proctor in proctors.items() %}
@@ -102,8 +102,8 @@
                         {% endfor %}
                     {% else %}
                     <div class="text-center py-8 text-gray-500">
-                        <p>No proctors yet.</p>
-                        <p class="text-sm mt-2">Add a proctor using the form.</p>
+                        <p>No examiners yet.</p>
+                        <p class="text-sm mt-2">Add an examiner using the form.</p>
                     </div>
                     {% endif %}
                 </div>
@@ -212,7 +212,7 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="bg-blue-50 rounded-lg p-4 text-center">
                     <p class="text-3xl font-bold text-blue-600">{{ proctors|length }}</p>
-                    <p class="text-sm text-gray-600">Proctors</p>
+                    <p class="text-sm text-gray-600">Examiners</p>
                 </div>
                 <div class="bg-purple-50 rounded-lg p-4 text-center">
                     <p class="text-3xl font-bold text-purple-600">{{ results|length }}</p>
@@ -271,10 +271,10 @@
         </div>
     </div>
 
-    <!-- Edit Proctor Modal -->
+    <!-- Edit Examiner Modal -->
     <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">Edit Proctor</h3>
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Edit Examiner</h3>
             <form id="editProctorForm" class="space-y-4">
                 <input type="hidden" id="editUsername">
                 <div>
@@ -289,7 +289,7 @@
                         placeholder="Enter new password">
                 </div>
                 <div>
-                    <label class="block text-gray-700 font-medium mb-2">Proctor Level</label>
+                    <label class="block text-gray-700 font-medium mb-2">Examiner Level</label>
                     <select id="editProctorLevel"
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500">
                         <option value="regional">Regional</option>
@@ -357,12 +357,12 @@
 
             } catch (error) {
                 messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
-                messageDiv.textContent = 'Error adding proctor: ' + error.message;
+                messageDiv.textContent = 'Error adding examiner: ' + error.message;
                 messageDiv.classList.remove('hidden');
             }
         });
 
-        // Edit Proctor
+        // Edit Examiner
         async function editProctor(username) {
             try {
                 const response = await fetch(`/admin/get-proctor/${username}`);
@@ -387,7 +387,7 @@
                 document.getElementById('editModal').classList.add('flex');
 
             } catch (error) {
-                alert('Error loading proctor: ' + error.message);
+                alert('Error loading examiner: ' + error.message);
             }
         }
 
@@ -423,13 +423,13 @@
                 }
 
             } catch (error) {
-                alert('Error updating proctor: ' + error.message);
+                alert('Error updating examiner: ' + error.message);
             }
         });
 
-        // Delete Proctor
+        // Delete Examiner
         async function deleteProctor(username) {
-            if (!confirm(`Are you sure you want to delete proctor "${username}"?`)) {
+            if (!confirm(`Are you sure you want to delete examiner "${username}"?`)) {
                 return;
             }
 
@@ -447,7 +447,7 @@
                 }
 
             } catch (error) {
-                alert('Error deleting proctor: ' + error.message);
+                alert('Error deleting examiner: ' + error.message);
             }
         }
 
