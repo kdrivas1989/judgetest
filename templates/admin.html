@@ -63,25 +63,21 @@
                 <div id="proctorList" class="space-y-3 max-h-96 overflow-y-auto">
                     {% if proctors %}
                         {% for username, proctor in proctors.items() %}
-                        <div class="border rounded-lg p-4 hover:bg-gray-50" data-username="{{ username }}">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <p class="font-semibold text-gray-800">{{ proctor.name }}</p>
-                                    <p class="text-sm text-gray-500">@{{ username }}</p>
-                                    <div class="mt-2 flex flex-wrap gap-1">
-                                        {% for cat_id in proctor.get('categories', []) %}
-                                            {% if cat_id in categories %}
-                                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                                                {{ categories[cat_id].name }}
-                                            </span>
-                                            {% endif %}
-                                        {% endfor %}
-                                        {% if not proctor.get('categories') %}
-                                        <span class="text-gray-400 text-sm italic">No categories assigned</span>
+                        <div class="border rounded-lg p-3 hover:bg-gray-50" data-username="{{ username }}">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-semibold text-gray-800">{{ proctor.name }}</span>
+                                    <span class="text-sm text-gray-500">@{{ username }}</span>
+                                    {% for cat_id in proctor.get('categories', []) %}
+                                        {% if cat_id in categories %}
+                                        <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">{{ categories[cat_id].name }}</span>
                                         {% endif %}
-                                    </div>
+                                    {% endfor %}
+                                    {% if not proctor.get('categories') %}
+                                    <span class="text-gray-400 text-sm italic">No categories</span>
+                                    {% endif %}
                                 </div>
-                                <div class="flex gap-2">
+                                <div class="flex gap-2 ml-2">
                                     <button onclick="editProctor('{{ username }}')"
                                         class="text-blue-600 hover:text-blue-800 text-sm font-medium">
                                         Edit
