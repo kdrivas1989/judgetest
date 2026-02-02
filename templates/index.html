@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USPA Judge Test - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-blue-600 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold">USPA Judge Test</h1>
+            <div class="flex items-center gap-4">
+                <span>Welcome, {{ name }}</span>
+                <a href="/logout" class="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-2xl mx-auto">
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                    {% if role == 'proctor' %}
+                    Proctor Dashboard
+                    {% else %}
+                    Student Dashboard
+                    {% endif %}
+                </h2>
+
+                {% if role == 'student' %}
+                <div class="space-y-4">
+                    <p class="text-gray-600">
+                        This test covers the USPA Skydiver's Competition Manual:
+                    </p>
+                    <ul class="list-disc list-inside text-gray-600 ml-4">
+                        <li>Chapter 1: USPA National Championships General Competition Rules</li>
+                        <li>Chapter 2: USPA Judging Program</li>
+                        <li>Chapter 3: Record Reporting Procedures</li>
+                    </ul>
+
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                        <h3 class="font-semibold text-blue-800">Test Information</h3>
+                        <ul class="text-blue-700 text-sm mt-2">
+                            <li>• 25 two-part questions (100 total points)</li>
+                            <li>• Part A: Multiple choice answer</li>
+                            <li>• Part B: Section reference where you found the answer</li>
+                            <li>• Correct answer = 4 points</li>
+                            <li>• Wrong answer + correct reference = 1 point</li>
+                            <li>• Passing score: 75%</li>
+                            <li>• No time limit</li>
+                        </ul>
+                    </div>
+
+                    <a href="/test"
+                        class="block w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg text-center transition mt-6">
+                        Start Test
+                    </a>
+                </div>
+                {% else %}
+                <div class="space-y-4">
+                    <p class="text-gray-600">
+                        As a proctor, you can:
+                    </p>
+                    <ul class="list-disc list-inside text-gray-600 ml-4">
+                        <li>View all test results</li>
+                        <li>Add new student accounts</li>
+                        <li>Monitor test progress</li>
+                    </ul>
+
+                    <a href="/proctor"
+                        class="block w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg text-center transition mt-6">
+                        Go to Proctor Panel
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

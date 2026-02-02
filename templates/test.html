@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USPA Judge Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-blue-600 text-white p-4 sticky top-0 z-10">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold">USPA Judge Test</h1>
+            <div class="flex items-center gap-4">
+                <span id="progress" class="text-sm">Question 1 of {{ total }}</span>
+                <span id="answered" class="text-sm bg-blue-700 px-3 py-1 rounded">0/{{ total }} answered</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-6 max-w-3xl">
+        <form id="testForm">
+            {% for q in questions %}
+            <div class="question-card bg-white rounded-lg shadow-lg p-6 mb-6" data-question="{{ q.id }}">
+                <div class="flex justify-between items-start mb-4">
+                    <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                        Question {{ q.id }}
+                    </span>
+                </div>
+
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">{{ q.question }}</h3>
+
+                <div class="space-y-3">
+                    {% for option in q.options %}
+                    <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition option-label">
+                        <input type="radio" name="q{{ q.id }}" value="{{ loop.index0 }}"
+                            class="w-5 h-5 text-blue-600" onchange="updateProgress()">
+                        <span class="ml-3 text-gray-700">{{ option }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+
+                <div class="mt-4 pt-4 border-t">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Part B: Where did you find this answer? (Section number, e.g., 1.5.2.1) - Optional
+                    </label>
+                    <input type="text" name="section{{ q.id }}"
+                        class="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 section-input"
+                        placeholder="e.g., 1.5.2.1">
+                </div>
+            </div>
+            {% endfor %}
+
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Submit Test</h3>
+                <p class="text-gray-600 mb-4">
+                    Make sure you have answered all questions before submitting.
+                </p>
+                <button type="button" onclick="submitTest()"
+                    class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition">
+                    Submit Test
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const totalQuestions = {{ total }};
+
+        function updateProgress() {
+            const mcAnswered = document.querySelectorAll('input[type="radio"]:checked').length;
+            document.getElementById('answered').textContent = `${mcAnswered}/${totalQuestions} answered`;
+
+            // Update option styling
+            document.querySelectorAll('.option-label').forEach(label => {
+                const input = label.querySelector('input');
+                if (input.checked) {
+                    label.classList.add('bg-blue-50', 'border-blue-500');
+                } else {
+                    label.classList.remove('bg-blue-50', 'border-blue-500');
+                }
+            });
+        }
+
+        async function submitTest() {
+            const mcAnswered = document.querySelectorAll('input[type="radio"]:checked').length;
+
+            if (mcAnswered < totalQuestions) {
+                if (!confirm(`You have only answered ${mcAnswered} of ${totalQuestions} questions. Submit anyway?`)) {
+                    return;
+                }
+            }
+
+            // Collect answers and sections
+            const answers = {};
+            const sections = {};
+            for (let i = 1; i <= totalQuestions; i++) {
+                const selected = document.querySelector(`input[name="q${i}"]:checked`);
+                if (selected) {
+                    answers[i] = parseInt(selected.value);
+                }
+                const sectionInput = document.querySelector(`input[name="section${i}"]`);
+                if (sectionInput) {
+                    sections[i] = sectionInput.value.trim();
+                }
+            }
+
+            try {
+                const response = await fetch('/submit-test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ answers, sections })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert('Error: ' + result.error);
+                    return;
+                }
+
+                // Redirect to results
+                window.location.href = `/results/${result.result_id}`;
+
+            } catch (error) {
+                alert('Error submitting test: ' + error.message);
+            }
+        }
+
+        // Scroll progress indicator
+        window.addEventListener('scroll', () => {
+            const cards = document.querySelectorAll('.question-card');
+            let currentQuestion = 1;
+
+            cards.forEach((card, index) => {
+                const rect = card.getBoundingClientRect();
+                if (rect.top < window.innerHeight / 2) {
+                    currentQuestion = index + 1;
+                }
+            });
+
+            document.getElementById('progress').textContent = `Question ${currentQuestion} of ${totalQuestions}`;
+        });
+    </script>
+</body>
+</html>

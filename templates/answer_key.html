@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USPA Judge Test - Answer Key</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            nav, .no-print { display: none !important; }
+            body { background: white !important; }
+            .print-break { page-break-after: always; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-purple-600 text-white p-4 no-print">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold">USPA Judge Test - Answer Key</h1>
+            <div class="flex items-center gap-4">
+                <button onclick="window.print()" class="bg-purple-700 hover:bg-purple-800 px-4 py-2 rounded">
+                    Print Answer Key
+                </button>
+                <a href="/proctor" class="bg-purple-700 hover:bg-purple-800 px-4 py-2 rounded">Back to Proctor Panel</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2 text-center">USPA Judge Test - Answer Key</h2>
+            <p class="text-gray-500 text-center mb-4">USPA Skydiver's Competition Manual - Chapters 1, 2, and 3</p>
+
+            <div class="bg-yellow-50 border border-yellow-300 rounded-lg p-4 mb-6 no-print">
+                <p class="text-yellow-800 text-sm">
+                    <strong>Scoring:</strong> Correct answer = 4 points | Wrong answer + correct reference = 1 point
+                </p>
+            </div>
+
+            <!-- Quick Reference Table -->
+            <div class="overflow-x-auto mb-8">
+                <table class="w-full text-sm border-collapse border border-gray-300">
+                    <thead>
+                        <tr class="bg-gray-100">
+                            <th class="border border-gray-300 px-3 py-2 text-left">#</th>
+                            <th class="border border-gray-300 px-3 py-2 text-left">Answer</th>
+                            <th class="border border-gray-300 px-3 py-2 text-left">Section</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for q in questions %}
+                        <tr class="{% if loop.index is odd %}bg-white{% else %}bg-gray-50{% endif %}">
+                            <td class="border border-gray-300 px-3 py-2 font-medium">{{ q.id }}</td>
+                            <td class="border border-gray-300 px-3 py-2">{{ ['A', 'B', 'C', 'D'][q.correct] }}</td>
+                            <td class="border border-gray-300 px-3 py-2 font-mono">{{ q.correct_section }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Detailed Answer Key -->
+        <h3 class="text-xl font-bold text-gray-800 mb-4">Detailed Answer Key</h3>
+
+        {% for q in questions %}
+        <div class="bg-white rounded-lg shadow p-4 mb-4">
+            <div class="flex justify-between items-start mb-2">
+                <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                    Question {{ q.id }}
+                </span>
+                <span class="bg-green-100 text-green-800 px-3 py-1 rounded text-sm font-mono">
+                    Section {{ q.correct_section }}
+                </span>
+            </div>
+
+            <p class="text-gray-800 font-medium mb-3">{{ q.question }}</p>
+
+            <div class="space-y-2 text-sm">
+                {% for option in q.options %}
+                <div class="p-2 rounded {% if loop.index0 == q.correct %}bg-green-100 border border-green-400{% else %}bg-gray-50{% endif %}">
+                    <span class="font-medium {% if loop.index0 == q.correct %}text-green-700{% else %}text-gray-500{% endif %}">
+                        {{ ['A', 'B', 'C', 'D'][loop.index0] }}.
+                    </span>
+                    {{ option }}
+                    {% if loop.index0 == q.correct %}
+                    <span class="text-green-600 font-medium ml-2">✓ CORRECT</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="mt-3 pt-3 border-t text-sm text-gray-600">
+                <span class="font-medium">Reference:</span> {{ q.reference }}
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="text-center mt-8 no-print">
+            <button onclick="window.print()"
+                class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-8 rounded-lg transition">
+                Print Answer Key
+            </button>
+        </div>
+    </div>
+</body>
+</html>
