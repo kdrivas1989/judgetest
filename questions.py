@@ -32,6 +32,11 @@ TESTS = {
             {"id": 23, "question": "What is the minimum number of rounds to constitute a meet for Individual Accuracy?", "options": ["One", "Two", "Three", "Four"], "correct": 0, "correct_section": "8.1.6.1"},
             {"id": 24, "question": "Within how many meters of the target is the wind direction streamer placed?", "options": ["10 meters", "15 meters", "20 meters", "25 meters"], "correct": 2, "correct_section": "8.1.10.1.2"},
             {"id": 25, "question": "What is the minimum height above ground for the wind-speed measuring device?", "options": ["4 meters", "5 meters", "6 meters", "8 meters"], "correct": 2, "correct_section": "8.1.10.2.2"},
+            {"id": 26, "question": "What is the minimum horizontal diameter of footwear sole touching the target?", "options": ["0.5 cm", "1 cm", "1.5 cm", "2 cm"], "correct": 1, "correct_section": "8-1.11.2.1"},
+            {"id": 27, "question": "After a landing, competitors must do what immediately?", "options": ["Signal score", "Leave target area", "Wait for judges", "Reset AMD"], "correct": 1, "correct_section": "8-1.9.6"},
+            {"id": 28, "question": "Who positions the large wind indicator approximately 50 meters from target?", "options": ["Meet Director", "Competitors", "The judges", "Wind recorder"], "correct": 2, "correct_section": "8-1.10.1.1"},
+            {"id": 29, "question": "A Video Viewing system at the target must be capable of what feature?", "options": ["Live streaming", "Slow motion", "Instant replay", "Zoom"], "correct": 1, "correct_section": "8-1.9.2"},
+            {"id": 30, "question": "In addition to judges, who else must be at the target area?", "options": ["Only Jury members", "Canopy-flight observer and wind recorder", "Meet Director", "Videographer"], "correct": 1, "correct_section": "8-1.9.3"},
         ]
     },
     "ch8_national": {
@@ -64,6 +69,11 @@ TESTS = {
             {"id": 23, "question": "In case of tie in top three places, how many tie-break rounds maximum?", "options": ["One", "Two", "Three", "Unlimited"], "correct": 1, "correct_section": "8.2.2.3"},
             {"id": 24, "question": "Winds aloft refers to winds occurring above what?", "options": ["500 feet", "1000 feet", "Wind-speed device altitude", "Exit altitude"], "correct": 2, "correct_section": "8.A.1.2.8"},
             {"id": 25, "question": "The control pad when struck at any point scores what?", "options": ["10 cm", "15 cm", "16 cm", "Maximum"], "correct": 2, "correct_section": "8.A.1.2.3"},
+            {"id": 26, "question": "If an AMD is found to be defective and first contact was on it, what must be offered?", "options": ["Score stands", "Rejump", "16 cm score", "Average score"], "correct": 1, "correct_section": "8-1.13.3"},
+            {"id": 27, "question": "The decision to use Video Viewing system is at whose discretion?", "options": ["Competitor", "Event/Chief Judge", "Meet Director", "Jury"], "correct": 1, "correct_section": "8-1.9.2"},
+            {"id": 28, "question": "The competitor willfully failing to display assigned number is what for that jump?", "options": ["Warned", "Disqualified", "Given 16 cm", "Offered rejump"], "correct": 1, "correct_section": "8-1.11.1.2"},
+            {"id": 29, "question": "The Event Judge may refuse specific footwear at any time. This decision is grounds for protest.", "options": ["True", "False", "Only before competition", "Only with CJ approval"], "correct": 1, "correct_section": "8-1.11.2.1"},
+            {"id": 30, "question": "If a tie cannot be broken in top three places, what is awarded?", "options": ["Tie-break continues", "Co-medals", "Chief Judge decides", "Random draw"], "correct": 1, "correct_section": "8-2.2.3"},
         ]
     },
     "ch9_regional": {
@@ -96,6 +106,11 @@ TESTS = {
             {"id": 23, "question": "A grip consists of contact between what and another jumper?", "options": ["Any body part", "Palm side of hand/fingers", "Fist", "Wrist"], "correct": 1, "correct_section": "9.8.2"},
             {"id": 24, "question": "For 10-Way, where must the videographer record an image before team exit?", "options": ["Target", "Aircraft door", "Line on floor", "Altimeter"], "correct": 2, "correct_section": "9.6.2.1.1"},
             {"id": 25, "question": "The videographer on an all-women 4-Way Open team may be what?", "options": ["Female only", "Male only", "Either sex", "Must be rated judge"], "correct": 2, "correct_section": "9.3.2.2"},
+            {"id": 26, "question": "In VFS/MFS, where possible Meet Director schedules rounds when sun is not within how many degrees of zenith?", "options": ["10 degrees", "15 degrees", "20 degrees", "30 degrees"], "correct": 2, "correct_section": "9-5.1.4"},
+            {"id": 27, "question": "How many gold medalists are allowed on Advanced/Intermediate VFS teams?", "options": ["One", "Two", "Three", "Four"], "correct": 1, "correct_section": "9-3"},
+            {"id": 28, "question": "The videographer is NOT considered when applying what rule?", "options": ["Team size", "Medal restriction", "Exit order", "Working time"], "correct": 1, "correct_section": "9-3"},
+            {"id": 29, "question": "A competitor or videographer may compete on how many teams in each event?", "options": ["One only", "Two", "Three", "Unlimited"], "correct": 0, "correct_section": "9-3"},
+            {"id": 30, "question": "16-Way teams may have up to how many members including videographer?", "options": ["17", "18", "19", "20"], "correct": 2, "correct_section": "9-3.4.1"},
         ]
     },
     "ch9_national": {
@@ -128,6 +143,11 @@ TESTS = {
             {"id": 23, "question": "Reduced exit altitude for 2-Way MFS and 4-Way VFS in weather is what?", "options": ["8,000 feet", "8,500 feet", "9,000 feet", "10,000 feet"], "correct": 2, "correct_section": "9.5.6.4.2"},
             {"id": 24, "question": "What is the reduced working time for 2-Way MFS and 4-Way VFS at lower altitude?", "options": ["15 seconds", "20 seconds", "25 seconds", "30 seconds"], "correct": 1, "correct_section": "9.5.6.4.2"},
             {"id": 25, "question": "Reduced exit altitude for 10-Way in weather is what?", "options": ["7,500 feet", "8,000 feet", "8,500 feet", "9,000 feet"], "correct": 2, "correct_section": "9.5.6.4.2"},
+            {"id": 26, "question": "If container becomes exhausted during draw, what happens?", "options": ["Draw stops", "Entire pool put back in", "Use alternate pool", "CJ decides"], "correct": 1, "correct_section": "9-4.2.2.3"},
+            {"id": 27, "question": "Round 6 in 10-Way shall be assigned what formation?", "options": ["Random draw", "Formation 8 (Star)", "Team choice", "Tie-break formation"], "correct": 1, "correct_section": "9-4.2.1.9"},
+            {"id": 28, "question": "10-Way teams may have up to how many members including videographer?", "options": ["11", "12", "13", "14"], "correct": 2, "correct_section": "9-3.5.1"},
+            {"id": 29, "question": "Reduced working time for 10-Way at lower altitude is how many seconds?", "options": ["20 seconds", "25 seconds", "30 seconds", "35 seconds"], "correct": 1, "correct_section": "9-5.6.4.2"},
+            {"id": 30, "question": "In 4-Way Beginner draw, how many blocks are in the dive pool?", "options": ["6", "8", "10", "All blocks"], "correct": 1, "correct_section": "9-4.2.1.7"},
         ]
     },
     "ch10_regional": {
@@ -160,6 +180,11 @@ TESTS = {
             {"id": 23, "question": "How many formations are in each 2-Way Sequential round?", "options": ["Three", "Four", "Five", "Six"], "correct": 2, "correct_section": "4.2.2.1"},
             {"id": 24, "question": "How many formations are in each 4-Way Sequential round?", "options": ["Three or four", "Four or five", "Five or six", "Six or seven"], "correct": 1, "correct_section": "4.2.1.3"},
             {"id": 25, "question": "Handholds on what are not permitted in CF?", "options": ["Lines only", "Canopy only", "Other competitors' bodies", "Risers only"], "correct": 2, "correct_section": "6.1.2"},
+            {"id": 26, "question": "The Meet Director may raise exit altitude in weather to no higher than what?", "options": ["8,000 feet", "9,000 feet", "10,000 feet", "11,000 feet"], "correct": 2, "correct_section": "10-7.8.2"},
+            {"id": 27, "question": "Teams may refuse to jump in rain or turbulent conditions.", "options": ["True", "False", "Only with CJ approval", "Only once per event"], "correct": 0, "correct_section": "10-7.8.3"},
+            {"id": 28, "question": "2-Way Sequential CF consists of how many scoring formations per round?", "options": ["Three", "Four", "Five", "Six"], "correct": 2, "correct_section": "10-4.2.2.1"},
+            {"id": 29, "question": "A valid grip in CF involves contact with what?", "options": ["Any canopy part", "A lines or front risers", "Rear risers only", "Toggle lines"], "correct": 1, "correct_section": "10-6.1.2"},
+            {"id": 30, "question": "Working time in CF starts when?", "options": ["First exit", "First grip release from first formation", "First canopy open", "All canopies open"], "correct": 1, "correct_section": "10-5.6.1"},
         ]
     },
     "ch10_national": {
@@ -192,6 +217,11 @@ TESTS = {
             {"id": 23, "question": "A formation not clearly presented is scored as what?", "options": ["Warning", "Infringement", "Omission", "Rejump required"], "correct": 1, "correct_section": "6.1.9.1"},
             {"id": 24, "question": "Video evidence must show what for scoring to occur?", "options": ["Aircraft", "All canopies", "Formation and grips", "Target area"], "correct": 2, "correct_section": "7.1.3.1"},
             {"id": 25, "question": "All CF activity must cease by what altitude with jumpers separated?", "options": ["2,000 feet", "2,500 feet", "3,000 feet", "3,500 feet"], "correct": 1, "correct_section": "5.7.1"},
+            {"id": 26, "question": "CF cannot be practiced or scored using what type of parachute?", "options": ["Main only", "Reserve (auxiliary)", "ZP canopies", "F-111 canopies"], "correct": 1, "correct_section": "10-7.1.2"},
+            {"id": 27, "question": "If a competitor is disqualified for a jump, they receive how many points?", "options": ["Zero", "One", "Average", "Previous round score"], "correct": 0, "correct_section": "10-7.1.4.1"},
+            {"id": 28, "question": "Practice of formations other than those specified results in what?", "options": ["Warning", "Point deduction", "Disqualification from competition", "Rejump"], "correct": 2, "correct_section": "10-7.1.1.1"},
+            {"id": 29, "question": "In 4-Way Rotation, the intermediate formation is a correctly completed what?", "options": ["2-way stack", "3-way stack-plane", "4-way diamond", "2-way plane"], "correct": 1, "correct_section": "10-2.1.1.2"},
+            {"id": 30, "question": "Working time for 4-Way Sequential is how many seconds?", "options": ["90 seconds", "105 seconds", "120 seconds", "135 seconds"], "correct": 2, "correct_section": "10-5.6.2.1"},
         ]
     },
     "ch11_regional": {
@@ -224,6 +254,11 @@ TESTS = {
             {"id": 23, "question": "A Freefly team has how many performers (not including videographer)?", "options": ["One", "Two", "Three", "Four"], "correct": 1, "correct_section": "1.1.2"},
             {"id": 24, "question": "Each Compulsory Routine consists of how many Compulsory Sequences?", "options": ["Two", "Three", "Four", "Five"], "correct": 2, "correct_section": "3.2.2"},
             {"id": 25, "question": "For ties in the first three places, what is the first tie-breaking method?", "options": ["Tie-break free round", "Sum of free rounds", "Highest single round", "Co-placing"], "correct": 0, "correct_section": "5.3.1"},
+            {"id": 26, "question": "A Freefly team consists of how many total members including videographer?", "options": ["Two", "Three", "Four", "Five"], "correct": 1, "correct_section": "11-3.1.4"},
+            {"id": 27, "question": "Working time for Freeflying terminates after how many seconds?", "options": ["40 seconds", "43 seconds", "45 seconds", "50 seconds"], "correct": 1, "correct_section": "11-1.1.7.2"},
+            {"id": 28, "question": "Initial Difficulty Score for free routines ranges from 0.0 to what?", "options": ["5.0", "10.0", "15.0", "20.0"], "correct": 1, "correct_section": "11-4.2.1"},
+            {"id": 29, "question": "A Freestyle team consists of a performer and what?", "options": ["Two performers", "A videographer", "Three performers", "Two videographers"], "correct": 1, "correct_section": "11-3.1.1"},
+            {"id": 30, "question": "The round order for AE is F-C-F-F-C-F-F where F means what?", "options": ["Final round", "Free Routine", "Formation round", "First attempt"], "correct": 1, "correct_section": "11-3.3.4"},
         ]
     },
     "ch11_national": {
@@ -256,6 +291,11 @@ TESTS = {
             {"id": 23, "question": "Contact between performers and videographer is grounds for a rejump.", "options": ["True", "False", "Only if intentional", "Chief Judge decides"], "correct": 1, "correct_section": "2.4.2"},
             {"id": 24, "question": "Adverse weather during a jump is grounds for protest.", "options": ["True", "False", "Only for rejump", "Chief Judge decides"], "correct": 1, "correct_section": "2.4.4"},
             {"id": 25, "question": "A Freefly team consists of how many Team Members total?", "options": ["Two", "Three", "Four", "Five"], "correct": 1, "correct_section": "3.1.4"},
+            {"id": 26, "question": "Free routine videos must be delivered to Chief Judge how long before registration closes?", "options": ["24 hours", "48 hours", "72 hours", "1 week"], "correct": 1, "correct_section": "11-3.2.4.3"},
+            {"id": 27, "question": "Executing compulsory sequences in wrong order results in what for out-of-order sequences?", "options": ["Penalty points", "Zero score", "Rejump", "Warning"], "correct": 1, "correct_section": "11-4.3.3.1"},
+            {"id": 28, "question": "Only one Team Member may carry freefall video equipment on any particular round.", "options": ["True", "False", "Two allowed", "Unlimited"], "correct": 0, "correct_section": "11-3.1.3"},
+            {"id": 29, "question": "Camera deductions in free rounds can be up to how much for performer too far from camera?", "options": ["-1.0 points", "-2.0 points", "-3.0 points", "-5.0 points"], "correct": 1, "correct_section": "11-4.2.3.2"},
+            {"id": 30, "question": "Failure to provide compulsory sequence order before competition results in what?", "options": ["Warning", "Zero points", "Penalty deduction", "Rejump offered"], "correct": 1, "correct_section": "11-3.2.4.2"},
         ]
     },
     "ch12_13_regional": {
@@ -288,6 +328,11 @@ TESTS = {
             {"id": 23, "question": "What is the Default Result (DR) in CP-Freestyle?", "options": ["Zero points", "Three points", "Five points", "Ten points"], "correct": 1, "correct_section": "2.2"},
             {"id": 24, "question": "The maximum wind speed for CP-Freestyle is what?", "options": ["5 m/s", "7 m/s", "9 m/s", "11 m/s"], "correct": 1, "correct_section": "3.1.1"},
             {"id": 25, "question": "What is the maximum points possible in CP-Freestyle (3 rounds)?", "options": ["100 points", "200 points", "300 points", "400 points"], "correct": 2, "correct_section": "7.1.1"},
+            {"id": 26, "question": "In Zone Accuracy, what percentage is assigned to the top ranked competitor?", "options": ["50%", "75%", "100%", "125%"], "correct": 2, "correct_section": "12-4.5.2"},
+            {"id": 27, "question": "The CP water course minimum depth from beginning to G2 is what?", "options": ["0.40 meters", "0.50 meters", "0.60 meters", "0.75 meters"], "correct": 2, "correct_section": "12-Addendum B 1.1.4.1"},
+            {"id": 28, "question": "What is the width of the CP course?", "options": ["10 meters", "12 meters", "15 meters", "20 meters"], "correct": 0, "correct_section": "12-Addendum B 1.1.2"},
+            {"id": 29, "question": "What result applies for a Missed Entry (ME) in CP?", "options": ["Default result", "Minimum result (zero points)", "Rejump offered", "Average of other rounds"], "correct": 1, "correct_section": "12-4.1.4.1"},
+            {"id": 30, "question": "How many zones comprise Zone Accuracy in CP?", "options": ["Six", "Eight", "Ten", "Twelve"], "correct": 2, "correct_section": "12-Addendum E"},
         ]
     },
     "ch12_13_national": {
@@ -320,6 +365,11 @@ TESTS = {
             {"id": 23, "question": "The video review panel in CP-Freestyle consists of how many persons?", "options": ["Two", "Three", "Four", "Five"], "correct": 1, "correct_section": "6.2.2"},
             {"id": 24, "question": "One complete round constitutes a meet for CP-Freestyle.", "options": ["True", "False", "Two rounds", "Three rounds"], "correct": 0, "correct_section": "1.2.2"},
             {"id": 25, "question": "What is the minimum number of high-performance landings for CP Open class?", "options": ["100 in 12 months", "150 in 12 months", "200 total", "500 total"], "correct": 1, "correct_section": "1-5.2.2"},
+            {"id": 26, "question": "In CP-Freestyle, routine description sheets must be presented how long before competition?", "options": ["24 hours", "36 hours", "48 hours", "72 hours"], "correct": 2, "correct_section": "13-4.1.3"},
+            {"id": 27, "question": "The video review panel in CP-Freestyle consists of how many persons?", "options": ["Two", "Three", "Four", "Five"], "correct": 1, "correct_section": "13-6.2.2"},
+            {"id": 28, "question": "A penalty in CP-Freestyle is applied when indicated by a minimum of how many judges?", "options": ["Two", "Three", "Four", "Five"], "correct": 1, "correct_section": "13-4.1.8"},
+            {"id": 29, "question": "What is the fee to invoke a video review challenge in CP?", "options": ["$25", "$50", "$75", "$100"], "correct": 2, "correct_section": "12-6.3.5"},
+            {"id": 30, "question": "In Speed, time is measured to what precision?", "options": ["0.1 seconds", "0.01 seconds", "0.001 seconds", "0.0001 seconds"], "correct": 2, "correct_section": "12-4.2.3"},
         ]
     },
     "ch14_regional": {
@@ -352,6 +402,11 @@ TESTS = {
             {"id": 23, "question": "With 5 judges in WS Acrobatic, the highest and lowest scores are discarded.", "options": ["True", "False", "Only compulsory", "Only free"], "correct": 0, "correct_section": "7.2.8.1"},
             {"id": 24, "question": "WS Performance Overall uses what calculation method?", "options": ["Total points", "Average placing", "Sum of percentage scores", "Best rounds"], "correct": 2, "correct_section": "5.9.3"},
             {"id": 25, "question": "A wingsuit is defined as a garment forming wings between what?", "options": ["Arms only", "Legs only", "Arms, legs, and torso", "Inflatable cells"], "correct": 2, "correct_section": "2.1.1"},
+            {"id": 26, "question": "In WS Performance, scores are calculated as what of the top result?", "options": ["Raw scores", "Percentage of top result", "Standard deviations", "Rankings only"], "correct": 1, "correct_section": "14-5.9.2"},
+            {"id": 27, "question": "WS Performance Overall uses what calculation method?", "options": ["Total points", "Average placing", "Sum of percentage scores", "Best rounds"], "correct": 2, "correct_section": "14-5.9.3"},
+            {"id": 28, "question": "With 5 judges in WS Acrobatic, what happens to highest and lowest scores?", "options": ["Both used", "Both discarded", "Only highest discarded", "Only lowest discarded"], "correct": 1, "correct_section": "14-7.2.8.1"},
+            {"id": 29, "question": "The Acrobatic Altitude Window lower boundary is how many feet below the upper boundary?", "options": ["5,000 feet", "6,500 feet", "7,500 feet", "8,000 feet"], "correct": 2, "correct_section": "14-6.3.3"},
+            {"id": 30, "question": "What is the minimum horizontal spacing between exits in WS Performance?", "options": ["400m", "500m", "600m", "800m"], "correct": 2, "correct_section": "14-5.5.5"},
         ]
     },
     "ch14_national": {
@@ -384,6 +439,11 @@ TESTS = {
             {"id": 23, "question": "The PLD must record data with a resolution of at least what frequency?", "options": ["1Hz", "5Hz", "10Hz", "20Hz"], "correct": 1, "correct_section": "4.1.1"},
             {"id": 24, "question": "If the PLD is lost, what score does the competitor receive?", "options": ["Zero", "Average of others", "Rejump", "DNF"], "correct": 0, "correct_section": "4.2.12"},
             {"id": 25, "question": "WS Performance scores are calculated as what of the top result?", "options": ["Raw scores", "Percentage of top result", "Standard deviations", "Rankings only"], "correct": 1, "correct_section": "5.9.2"},
+            {"id": 26, "question": "WS Performance Overall uses what calculation method?", "options": ["Total points", "Average placing", "Sum of percentage scores", "Best rounds only"], "correct": 2, "correct_section": "5.9.3"},
+            {"id": 27, "question": "In WS Acrobatic, teams must submit their free routine dive plan how far in advance?", "options": ["Before draw", "24 hours before", "At team registration", "At briefing"], "correct": 2, "correct_section": "6.5.2"},
+            {"id": 28, "question": "WS Acrobatic teams may have up to how many members including videographer?", "options": ["Three", "Four", "Five", "Six"], "correct": 1, "correct_section": "2.3.1"},
+            {"id": 29, "question": "Exit altitude for WS Acrobatic is what?", "options": ["10,500 feet", "12,000 feet", "12,500 feet", "13,000 feet"], "correct": 2, "correct_section": "2.4.2"},
+            {"id": 30, "question": "Working time for WS Acrobatic is how many seconds?", "options": ["35 seconds", "45 seconds", "60 seconds", "75 seconds"], "correct": 2, "correct_section": "2.4.9"},
         ]
     },
     "ch15_regional": {
@@ -416,6 +476,11 @@ TESTS = {
             {"id": 23, "question": "Mixed teams compete for separate medals.", "options": ["True", "False", "Only at Nationals", "Only at Worlds"], "correct": 0, "correct_section": "7.1.3.2"},
             {"id": 24, "question": "How many competitors form a mixed team?", "options": ["Two", "Three", "Four", "Five"], "correct": 0, "correct_section": "4.2.2"},
             {"id": 25, "question": "A mixed team includes how many male and how many female competitors?", "options": ["One male, one female", "Two male, one female", "One male, two female", "Any combination"], "correct": 0, "correct_section": "4.2.2"},
+            {"id": 26, "question": "The performance window upper boundary starts when vertical speed first reaches what?", "options": ["5 m/s", "10 m/s", "15 m/s", "20 m/s"], "correct": 1, "correct_section": "2.7.1"},
+            {"id": 27, "question": "Speed Skydiving competitors shall NOT use what type of systems?", "options": ["GPS systems", "Propulsion systems", "Audio systems", "Video systems"], "correct": 1, "correct_section": "3.2.1"},
+            {"id": 28, "question": "Each competitor must wear an audio altitude warning device on every jump.", "options": ["True", "False", "Only at Nationals", "Only in competition rounds"], "correct": 0, "correct_section": "3.2.8"},
+            {"id": 29, "question": "The validation window verifies what about the competitor's flight?", "options": ["Horizontal distance", "Vertical stability", "Speed consistency", "Exit altitude"], "correct": 1, "correct_section": "2.8.1"},
+            {"id": 30, "question": "Additional or removable weight is permitted in Speed Skydiving.", "options": ["True up to 10kg", "True up to 5kg", "False - not permitted", "Only with approval"], "correct": 2, "correct_section": "3.2.4"},
         ]
     },
     "general": {
@@ -448,6 +513,16 @@ TESTS = {
             {"id": 23, "question": "How many years can the same person serve as Chief Judge in the same discipline consecutively?", "options": ["One year", "Two years", "Three years", "No limit"], "correct": 1, "correct_section": "2-7.3.1.1"},
             {"id": 24, "question": "Who has the authority to suspend or revoke a judge's rating?", "options": ["Meet Director", "Chief Judge", "USPA Board of Directors", "Director of Competition"], "correct": 2, "correct_section": "2-4.3.1"},
             {"id": 25, "question": "What organization delegated USPA authority over skydiving competition in the United States?", "options": ["FAA", "FAI", "NAA", "ISC"], "correct": 2, "correct_section": "1-1.3.1"},
+            {"id": 26, "question": "Video equipment must provide a minimum frame rate of how many frames per second?", "options": ["25 fps", "30 fps", "50 fps", "60 fps"], "correct": 2, "correct_section": "1-7.3.1"},
+            {"id": 27, "question": "What is the minimum time from arriving at competition site to first call for next jump (except rejumps)?", "options": ["30 minutes", "45 minutes", "60 minutes", "90 minutes"], "correct": 1, "correct_section": "1-7.5.3"},
+            {"id": 28, "question": "Once an event begins, competitors in FS/VFS and WS Acrobatic are prohibited from using what?", "options": ["Personal video", "Wind tunnel", "Practice aircraft", "Competition canopy"], "correct": 1, "correct_section": "1-7.2.1"},
+            {"id": 29, "question": "The Video Review Panel consists of Chief Judge, Jury President, and whom?", "options": ["Meet Director", "Event Judge", "Video Controller", "USPA Controller"], "correct": 2, "correct_section": "1-8.5.6.1"},
+            {"id": 30, "question": "What is the minimum score required on the practical exam for a Regional Judge rating?", "options": ["70%", "75%", "80%", "85%"], "correct": 2, "correct_section": "2-6.5.2"},
+            {"id": 31, "question": "A Performance National Judge rating expires at the end of which calendar year after last reported activity?", "options": ["First year", "Second year", "Third year", "Fifth year"], "correct": 1, "correct_section": "2-5.1.2.1"},
+            {"id": 32, "question": "For competitors in two concurrent events, minimum time to first call is reduced to how many minutes?", "options": ["15 minutes", "20 minutes", "30 minutes", "45 minutes"], "correct": 2, "correct_section": "1-7.5.4"},
+            {"id": 33, "question": "Video equipment must provide what type of digital signal?", "options": ["720-type", "1080-type", "4K-type", "Any HD"], "correct": 1, "correct_section": "1-7.3.1"},
+            {"id": 34, "question": "Kept protest fees are donated to what fund?", "options": ["USPA General Fund", "U.S. Parachute Team Trust Fund", "Host DZ Fund", "Judge Training Fund"], "correct": 1, "correct_section": "1-8.4.4.2"},
+            {"id": 35, "question": "For sporting purposes, gender can only be changed once per what period?", "options": ["12-month", "18-month", "24-month", "36-month"], "correct": 2, "correct_section": "1-8.6.3"},
         ]
     },
     "ch15_national": {
@@ -480,6 +555,11 @@ TESTS = {
             {"id": 23, "question": "The validation window length in meters is approximately what?", "options": ["800 m", "900 m", "1,006 m", "1,200 m"], "correct": 2, "correct_section": "2.8.1"},
             {"id": 24, "question": "The performance window starts when vertical speed first reaches what?", "options": ["5 m/s", "10 m/s", "15 m/s", "20 m/s"], "correct": 1, "correct_section": "2.7.1"},
             {"id": 25, "question": "The performance window ends at 7,400 ft below start OR at what altitude, whichever first?", "options": ["5,000 ft AGL", "5,600 ft AGL (breakoff)", "6,000 ft AGL", "4,500 ft AGL"], "correct": 1, "correct_section": "2.7.1"},
+            {"id": 26, "question": "Weight checks of competitors may fluctuate by how much?", "options": ["+/- 1kg", "+/- 2kg", "+/- 3kg", "+/- 5kg"], "correct": 1, "correct_section": "3.2.4"},
+            {"id": 27, "question": "The first person to exit on a pass turns how many degrees to the right?", "options": ["45 degrees", "90 degrees", "180 degrees", "Straight ahead"], "correct": 1, "correct_section": "5.2.3"},
+            {"id": 28, "question": "Exit order in a jump run is determined by what?", "options": ["Random draw", "Registration order", "Personal best descending", "Reverse standings"], "correct": 2, "correct_section": "5.3.1"},
+            {"id": 29, "question": "Mixed Team Event uses scores from how many rounds?", "options": ["All rounds", "Best 3 rounds", "Last 3 completed rounds", "First 3 rounds"], "correct": 2, "correct_section": "4.2.2"},
+            {"id": 30, "question": "If tie cannot be broken after tie-break jump and best round comparison, what happens?", "options": ["Another jump", "Co-medalists declared", "Chief Judge decides", "Draw lots"], "correct": 1, "correct_section": "7.1.2.3"},
         ]
     },
 }
