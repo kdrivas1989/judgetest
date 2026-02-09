@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USPA Judge Test - Verify Questions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-blue-600 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <a href="/jwg" class="text-blue-200 hover:text-white">&larr; Back to Dashboard</a>
+                <h1 class="text-xl font-bold">{{ test_name }}</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-blue-100">{{ name }}</span>
+                <a href="/logout" class="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8">
+        <div class="mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">Verify Question References</h2>
+            <p class="text-gray-600">Verify each reference matches the October 2025 USPA SCM. Click to edit if corrections are needed.</p>
+        </div>
+
+        <!-- Progress Bar -->
+        {% set verified_count = questions|selectattr('verified')|list|length %}
+        {% set total_count = questions|length %}
+        {% set pending_count = total_count - verified_count %}
+        {% set percent = ((verified_count / total_count) * 100)|round(1) if total_count > 0 else 0 %}
+        <div class="bg-white rounded-lg shadow p-4 mb-6">
+            <div class="flex justify-between items-center mb-2">
+                <span class="font-semibold text-gray-700">Progress</span>
+                <span class="text-sm text-gray-600" id="progressText">{{ verified_count }} of {{ total_count }} verified ({{ percent }}%)</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+                <div id="progressBar" class="bg-green-500 h-3 rounded-full transition-all duration-300" style="width: {{ percent }}%"></div>
+            </div>
+        </div>
+
+        <!-- Filter Toggle -->
+        <div class="bg-white rounded-lg shadow p-4 mb-6 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="showOnlyPending" checked class="w-4 h-4 text-blue-600 rounded">
+                    <span class="text-gray-700">Show only pending questions (<span id="pendingCount">{{ pending_count }}</span>)</span>
+                </label>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="flex items-center gap-2">
+                    <span class="inline-block w-4 h-4 bg-green-500 rounded"></span>
+                    <span class="text-sm text-gray-600">Verified</span>
+                </span>
+                <span class="flex items-center gap-2">
+                    <span class="inline-block w-4 h-4 bg-orange-400 rounded"></span>
+                    <span class="text-sm text-gray-600">Pending</span>
+                </span>
+            </div>
+        </div>
+
+        <!-- Questions List -->
+        <div id="questionsList" class="space-y-4">
+            {% for q in questions %}
+            <div id="question-{{ q.id }}"
+                 data-verified="{{ 'true' if q.verified else 'false' }}"
+                 class="question-card bg-white rounded-lg shadow p-4 {% if q.verified %}border-l-4 border-green-500 verified-card{% else %}border-l-4 border-orange-400 pending-card{% endif %}">
+                <div class="flex justify-between items-start gap-4">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2 flex-wrap">
+                            <span class="bg-gray-100 text-gray-700 text-sm px-2 py-1 rounded font-mono">Q{{ q.id }}</span>
+                            <span id="ref-display-{{ q.id }}" class="bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded font-mono">{{ q.correct_section }}</span>
+                            <button onclick="openEditModal({{ q.id }}, '{{ q.question|e }}', '{{ q.correct_section }}', {{ q.correct }}, {{ q.options|tojson|e }})"
+                                class="text-gray-400 hover:text-blue-600 text-sm">
+                                <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                                </svg>
+                                Edit
+                            </button>
+                        </div>
+                        <p id="question-text-{{ q.id }}" class="text-gray-800 font-medium mb-2">{{ q.question }}</p>
+                        <div id="options-{{ q.id }}" class="grid grid-cols-2 gap-2 text-sm">
+                            {% for opt in q.options %}
+                            <div class="option-{{ q.id }} {% if loop.index0 == q.correct %}bg-green-100 text-green-800 border border-green-300{% else %}bg-gray-50 text-gray-600{% endif %} px-2 py-1 rounded">
+                                {{ ['A', 'B', 'C', 'D'][loop.index0] }}. {{ opt }}
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Verification Status -->
+                        <div id="status-{{ q.id }}" class="mt-3 text-sm {% if q.verified %}text-green-600{% else %}text-orange-500{% endif %}">
+                            {% if q.verified %}
+                            <span class="flex items-center gap-1">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                Verified by: {{ q.verified_by }}
+                            </span>
+                            {% else %}
+                            <span>Awaiting verification</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Verify Button -->
+                    <div class="flex flex-col items-center">
+                        <button
+                            onclick="toggleVerification('{{ test_id }}', {{ q.id }}, {{ 'true' if q.verified else 'false' }})"
+                            id="btn-{{ q.id }}"
+                            class="w-14 h-14 rounded-full flex items-center justify-center transition-all {% if q.verified %}bg-green-500 text-white hover:bg-green-600{% else %}bg-orange-100 text-orange-400 hover:bg-green-100 hover:text-green-500{% endif %}"
+                            title="{% if q.verified %}Click to unverify{% else %}Click to verify{% endif %}">
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        </button>
+                        <span class="text-xs text-gray-500 mt-1" id="btn-label-{{ q.id }}">{% if q.verified %}Verified{% else %}Verify{% endif %}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Empty state when all verified -->
+        <div id="allVerifiedMessage" class="hidden bg-green-50 border border-green-200 rounded-lg p-8 text-center">
+            <svg class="w-16 h-16 text-green-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <h3 class="text-xl font-bold text-green-800 mb-2">All Questions Verified!</h3>
+            <p class="text-green-600">All questions in this test have been verified. Great work!</p>
+            <button onclick="document.getElementById('showOnlyPending').checked = false; filterQuestions();"
+                class="mt-4 text-blue-600 hover:underline">Show all questions</button>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Edit Question</h3>
+            <form id="editQuestionForm" class="space-y-4">
+                <input type="hidden" id="editQuestionId">
+
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">Question Text</label>
+                    <textarea id="editQuestionText" rows="3"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">SCM Reference</label>
+                    <input type="text" id="editReference"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                        placeholder="e.g., 8-1.3.1">
+                </div>
+
+                <div>
+                    <label class="block text-gray-700 font-medium mb-2">Options (mark correct answer)</label>
+                    <div class="space-y-2">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="correctAnswer" value="0" id="correct0" class="w-4 h-4">
+                            <label for="correct0" class="w-8">A.</label>
+                            <input type="text" id="editOption0" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="correctAnswer" value="1" id="correct1" class="w-4 h-4">
+                            <label for="correct1" class="w-8">B.</label>
+                            <input type="text" id="editOption1" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="correctAnswer" value="2" id="correct2" class="w-4 h-4">
+                            <label for="correct2" class="w-8">C.</label>
+                            <input type="text" id="editOption2" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="correctAnswer" value="3" id="correct3" class="w-4 h-4">
+                            <label for="correct3" class="w-8">D.</label>
+                            <input type="text" id="editOption3" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 pt-4">
+                    <button type="button" onclick="closeEditModal()"
+                        class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 px-4 rounded-lg transition">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+            <div id="editMessage" class="mt-4 hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        let verifiedCount = {{ verified_count }};
+        const totalCount = {{ total_count }};
+        const testId = '{{ test_id }}';
+        let currentOptions = [];
+
+        // Filter toggle
+        document.getElementById('showOnlyPending').addEventListener('change', filterQuestions);
+
+        function filterQuestions() {
+            const showOnlyPending = document.getElementById('showOnlyPending').checked;
+            const cards = document.querySelectorAll('.question-card');
+            let visiblePending = 0;
+            let visibleCount = 0;
+
+            cards.forEach(card => {
+                const isVerified = card.dataset.verified === 'true';
+                if (showOnlyPending && isVerified) {
+                    card.classList.add('hidden');
+                } else {
+                    card.classList.remove('hidden');
+                    visibleCount++;
+                    if (!isVerified) visiblePending++;
+                }
+            });
+
+            // Show/hide all verified message
+            const allVerifiedMsg = document.getElementById('allVerifiedMessage');
+            if (showOnlyPending && visiblePending === 0) {
+                allVerifiedMsg.classList.remove('hidden');
+            } else {
+                allVerifiedMsg.classList.add('hidden');
+            }
+
+            document.getElementById('pendingCount').textContent = totalCount - verifiedCount;
+        }
+
+        // Initial filter
+        filterQuestions();
+
+        async function toggleVerification(testId, questionId, isCurrentlyVerified) {
+            const action = isCurrentlyVerified ? 'unverify' : 'verify';
+            const btn = document.getElementById(`btn-${questionId}`);
+            const status = document.getElementById(`status-${questionId}`);
+            const card = document.getElementById(`question-${questionId}`);
+            const btnLabel = document.getElementById(`btn-label-${questionId}`);
+
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/jwg/verify-question', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ test_id: testId, question_id: questionId, action })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    if (action === 'verify') {
+                        btn.className = 'w-14 h-14 rounded-full flex items-center justify-center transition-all bg-green-500 text-white hover:bg-green-600';
+                        btn.title = 'Click to unverify';
+                        btnLabel.textContent = 'Verified';
+                        btn.onclick = () => toggleVerification(testId, questionId, true);
+                        card.className = 'question-card bg-white rounded-lg shadow p-4 border-l-4 border-green-500 verified-card';
+                        card.dataset.verified = 'true';
+                        status.className = 'mt-3 text-sm text-green-600';
+                        status.innerHTML = `<span class="flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                            </svg>
+                            Verified by: ${result.verified_by}
+                        </span>`;
+                        verifiedCount++;
+                    } else {
+                        btn.className = 'w-14 h-14 rounded-full flex items-center justify-center transition-all bg-orange-100 text-orange-400 hover:bg-green-100 hover:text-green-500';
+                        btn.title = 'Click to verify';
+                        btnLabel.textContent = 'Verify';
+                        btn.onclick = () => toggleVerification(testId, questionId, false);
+                        card.className = 'question-card bg-white rounded-lg shadow p-4 border-l-4 border-orange-400 pending-card';
+                        card.dataset.verified = 'false';
+                        status.className = 'mt-3 text-sm text-orange-500';
+                        status.innerHTML = '<span>Awaiting verification</span>';
+                        verifiedCount--;
+                    }
+
+                    // Update progress
+                    const percent = ((verifiedCount / totalCount) * 100).toFixed(1);
+                    document.getElementById('progressText').textContent = `${verifiedCount} of ${totalCount} verified (${percent}%)`;
+                    document.getElementById('progressBar').style.width = `${percent}%`;
+                    document.getElementById('pendingCount').textContent = totalCount - verifiedCount;
+
+                    // Re-filter
+                    filterQuestions();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+
+            btn.disabled = false;
+        }
+
+        function openEditModal(questionId, questionText, reference, correctIndex, options) {
+            document.getElementById('editQuestionId').value = questionId;
+            document.getElementById('editQuestionText').value = questionText;
+            document.getElementById('editReference').value = reference;
+
+            currentOptions = options;
+            for (let i = 0; i < 4; i++) {
+                document.getElementById(`editOption${i}`).value = options[i] || '';
+            }
+            document.getElementById(`correct${correctIndex}`).checked = true;
+
+            document.getElementById('editModal').classList.remove('hidden');
+            document.getElementById('editModal').classList.add('flex');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.add('hidden');
+            document.getElementById('editModal').classList.remove('flex');
+            document.getElementById('editMessage').classList.add('hidden');
+        }
+
+        document.getElementById('editQuestionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const questionId = parseInt(document.getElementById('editQuestionId').value);
+            const question = document.getElementById('editQuestionText').value;
+            const correct_section = document.getElementById('editReference').value;
+            const correct = parseInt(document.querySelector('input[name="correctAnswer"]:checked').value);
+            const options = [
+                document.getElementById('editOption0').value,
+                document.getElementById('editOption1').value,
+                document.getElementById('editOption2').value,
+                document.getElementById('editOption3').value
+            ];
+
+            const messageDiv = document.getElementById('editMessage');
+
+            try {
+                const response = await fetch('/jwg/update-question', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ test_id: testId, question_id: questionId, question, correct_section, correct, options })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                    messageDiv.textContent = result.error;
+                } else {
+                    messageDiv.className = 'mt-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded';
+                    messageDiv.textContent = result.message;
+
+                    // Update the UI
+                    document.getElementById(`question-text-${questionId}`).textContent = question;
+                    document.getElementById(`ref-display-${questionId}`).textContent = correct_section;
+
+                    // Update options display
+                    const optionsContainer = document.getElementById(`options-${questionId}`);
+                    const labels = ['A', 'B', 'C', 'D'];
+                    optionsContainer.innerHTML = options.map((opt, i) => `
+                        <div class="${i === correct ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-gray-50 text-gray-600'} px-2 py-1 rounded">
+                            ${labels[i]}. ${opt}
+                        </div>
+                    `).join('');
+
+                    setTimeout(() => {
+                        closeEditModal();
+                    }, 1000);
+                }
+                messageDiv.classList.remove('hidden');
+
+            } catch (error) {
+                messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                messageDiv.textContent = 'Error: ' + error.message;
+                messageDiv.classList.remove('hidden');
+            }
+        });
+
+        // Close modal on outside click
+        document.getElementById('editModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('editModal')) {
+                closeEditModal();
+            }
+        });
+    </script>
+</body>
+</html>

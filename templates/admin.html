@@ -292,6 +292,64 @@
             </div>
         </div>
 
+        <!-- Judges Working Group Section -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-blue-800 mb-4 border-b-2 border-blue-200 pb-2">Judges Working Group (JWG)</h2>
+            <div class="grid lg:grid-cols-2 gap-6">
+                <!-- Add JWG Member -->
+                <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-blue-500">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Add JWG Member</h3>
+                    <form id="addJwgForm" class="space-y-4">
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Full Name</label>
+                            <input type="text" id="jwgName" required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                                placeholder="Enter JWG member's full name">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Username (email)</label>
+                            <input type="text" id="jwgUsername" required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                                placeholder="Enter email as username">
+                            <p class="text-sm text-gray-500 mt-1">Default password: <code class="bg-gray-100 px-1 rounded">password</code></p>
+                        </div>
+                        <button type="submit"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition">
+                            Add JWG Member
+                        </button>
+                    </form>
+                    <div id="addJwgMessage" class="mt-4 hidden"></div>
+                </div>
+
+                <!-- Manage JWG Members -->
+                <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-blue-500">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Manage JWG Members</h3>
+                    <p class="text-sm text-gray-500 mb-4">JWG members can verify question references. <a href="/jwg" class="text-blue-600 hover:underline">View JWG Dashboard →</a></p>
+                    <div id="jwgList" class="space-y-3 max-h-80 overflow-y-auto">
+                        {% if jwg_members %}
+                        {% for username, user_data in jwg_members.items() %}
+                            <div class="border border-blue-200 rounded-lg p-3 hover:bg-blue-50" data-username="{{ username }}">
+                                <div class="flex justify-between items-center">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-semibold text-gray-800">{{ user_data.name }}</span>
+                                        <span class="text-sm text-gray-500">@{{ username }}</span>
+                                        <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">JWG</span>
+                                    </div>
+                                    <button onclick="deleteJwg('{{ username }}')"
+                                        class="text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>
+                                </div>
+                            </div>
+                        {% endfor %}
+                        {% else %}
+                        <div class="text-center py-4 text-gray-500">
+                            <p>No JWG members yet. Add via form on left.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Database Management Section -->
         {% if needs_seeding or needs_migration %}
         <div class="mt-6 bg-white rounded-lg shadow-lg p-6">
@@ -872,6 +930,66 @@
         }
 
         loadTestCount();
+
+        // Add JWG Member
+        document.getElementById('addJwgForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const name = document.getElementById('jwgName').value;
+            const username = document.getElementById('jwgUsername').value.toLowerCase();
+
+            const messageDiv = document.getElementById('addJwgMessage');
+
+            try {
+                const response = await fetch('/admin/add-jwg', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, username })
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                    messageDiv.textContent = result.error;
+                } else {
+                    messageDiv.className = 'mt-4 bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded';
+                    messageDiv.textContent = result.message;
+                    document.getElementById('addJwgForm').reset();
+                    setTimeout(() => location.reload(), 1000);
+                }
+                messageDiv.classList.remove('hidden');
+
+            } catch (error) {
+                messageDiv.className = 'mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+                messageDiv.textContent = 'Error adding JWG member: ' + error.message;
+                messageDiv.classList.remove('hidden');
+            }
+        });
+
+        // Delete JWG Member
+        async function deleteJwg(username) {
+            if (!confirm(`Are you sure you want to delete JWG member "${username}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/admin/delete-jwg/${username}`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    alert(result.error);
+                } else {
+                    location.reload();
+                }
+
+            } catch (error) {
+                alert('Error deleting JWG member: ' + error.message);
+            }
+        }
     </script>
 
     <!-- Change Password Modal -->

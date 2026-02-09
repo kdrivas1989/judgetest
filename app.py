@@ -81,6 +81,9 @@ GENERAL_TEST_ID = 'general'
 # Proctor levels (Regional can only administer Regional tests, National can administer both, Examiner can administer both + examine judges)
 PROCTOR_LEVELS = ['regional', 'national', 'examiner']
 
+# User roles
+USER_ROLES = ['student', 'proctor', 'jwg', 'admin']
+
 
 def get_sqlite_db():
     """Get SQLite database connection for local development."""
@@ -161,6 +164,19 @@ def init_db():
             CREATE TABLE IF NOT EXISTS custom_questions (
                 test_id TEXT PRIMARY KEY,
                 data TEXT NOT NULL
+            )
+        ''')
+
+        # Create question_verifications table for JWG
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS question_verifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                test_id TEXT NOT NULL,
+                question_id INTEGER NOT NULL,
+                verified_by TEXT NOT NULL,
+                verified_at TEXT NOT NULL,
+                verifier_name TEXT NOT NULL,
+                UNIQUE(test_id, question_id)
             )
         ''')
 
@@ -391,6 +407,92 @@ def save_custom_questions(test_id, questions_data):
         db.commit()
 
 
+def get_question_verifications(test_id=None):
+    """Get question verifications, optionally filtered by test_id."""
+    if USE_SUPABASE:
+        try:
+            if test_id:
+                result = supabase.table('question_verifications').select('*').eq('test_id', test_id).execute()
+            else:
+                result = supabase.table('question_verifications').select('*').execute()
+            verifications = {}
+            for row in result.data:
+                key = f"{row['test_id']}_{row['question_id']}"
+                verifications[key] = {
+                    'verified_by': row['verified_by'],
+                    'verified_at': row['verified_at'],
+                    'verifier_name': row['verifier_name']
+                }
+            return verifications
+        except Exception as e:
+            print(f"Error getting verifications: {e}")
+            return {}
+    else:
+        db = get_sqlite_db()
+        if test_id:
+            cursor = db.execute('SELECT * FROM question_verifications WHERE test_id = ?', (test_id,))
+        else:
+            cursor = db.execute('SELECT * FROM question_verifications')
+        verifications = {}
+        for row in cursor.fetchall():
+            key = f"{row['test_id']}_{row['question_id']}"
+            verifications[key] = {
+                'verified_by': row['verified_by'],
+                'verified_at': row['verified_at'],
+                'verifier_name': row['verifier_name']
+            }
+        return verifications
+
+
+def save_question_verification(test_id, question_id, username, name):
+    """Save a question verification."""
+    verified_at = datetime.now().isoformat()
+    if USE_SUPABASE:
+        try:
+            existing = supabase.table('question_verifications').select('id').eq('test_id', test_id).eq('question_id', question_id).execute()
+            if existing.data:
+                supabase.table('question_verifications').update({
+                    'verified_by': username,
+                    'verified_at': verified_at,
+                    'verifier_name': name
+                }).eq('test_id', test_id).eq('question_id', question_id).execute()
+            else:
+                supabase.table('question_verifications').insert({
+                    'test_id': test_id,
+                    'question_id': question_id,
+                    'verified_by': username,
+                    'verified_at': verified_at,
+                    'verifier_name': name
+                }).execute()
+        except Exception as e:
+            print(f"Error saving verification: {e}")
+            return False
+    else:
+        db = get_sqlite_db()
+        db.execute('''
+            INSERT OR REPLACE INTO question_verifications
+            (test_id, question_id, verified_by, verified_at, verifier_name)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (test_id, question_id, username, verified_at, name))
+        db.commit()
+    return True
+
+
+def remove_question_verification(test_id, question_id):
+    """Remove a question verification."""
+    if USE_SUPABASE:
+        try:
+            supabase.table('question_verifications').delete().eq('test_id', test_id).eq('question_id', question_id).execute()
+        except Exception as e:
+            print(f"Error removing verification: {e}")
+            return False
+    else:
+        db = get_sqlite_db()
+        db.execute('DELETE FROM question_verifications WHERE test_id = ? AND question_id = ?', (test_id, question_id))
+        db.commit()
+    return True
+
+
 def get_test_questions(test_id):
     """Get questions for a test from database."""
     # First try to get from tests table in database
@@ -526,6 +628,18 @@ def admin_required(f):
     return decorated_function
 
 
+def jwg_required(f):
+    """Decorator for JWG (Judges Working Group) members only."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user' not in session:
+            return redirect(url_for('login'))
+        if session.get('role') not in ['jwg', 'admin']:
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 def get_proctor_tests(username, include_general=True):
     """Get tests available for a proctor based on assigned categories and per-category levels."""
     user = get_user(username)
@@ -576,6 +690,8 @@ def index():
         return redirect(url_for('admin_dashboard'))
     elif role == 'proctor':
         return redirect(url_for('proctor_dashboard'))
+    elif role == 'jwg':
+        return redirect(url_for('jwg_dashboard'))
 
     # Get student's assigned tests
     user = get_user(session.get('user'))
@@ -1027,10 +1143,11 @@ def change_password():
 @app.route('/admin')
 @admin_required
 def admin_dashboard():
-    # Get all proctors and students
+    # Get all proctors, students, and JWG members
     all_users = get_all_users()
     proctors = {u: data for u, data in all_users.items() if data['role'] == 'proctor'}
     students = {u: data for u, data in all_users.items() if data['role'] == 'student'}
+    jwg_members = {u: data for u, data in all_users.items() if data['role'] == 'jwg'}
     all_results = get_all_test_results()
     all_tests = get_all_tests()
 
@@ -1103,6 +1220,7 @@ def admin_dashboard():
                          examiners=examiners,
                          trainers=trainers,
                          students=students,
+                         jwg_members=jwg_members,
                          categories=CATEGORIES,
                          results=all_results,
                          tests=all_tests,
@@ -1306,6 +1424,205 @@ def migrate_categories():
             migrated += 1
 
     return jsonify({'success': True, 'message': f'Migrated {migrated} examiner(s) to new format'})
+
+
+# JWG (Judges Working Group) routes
+@app.route('/jwg')
+@jwg_required
+def jwg_dashboard():
+    """Dashboard for Judges Working Group members to verify question references."""
+    all_tests = get_all_tests()
+    verifications = get_question_verifications()
+
+    # Calculate verification stats per test
+    test_stats = {}
+    for test_id, test_data in all_tests.items():
+        questions = test_data.get('questions', [])
+        total = len(questions)
+        verified = sum(1 for q in questions if f"{test_id}_{q['id']}" in verifications)
+        test_stats[test_id] = {
+            'name': test_data['name'],
+            'chapter': test_data['chapter'],
+            'total': total,
+            'verified': verified,
+            'percent': round((verified / total * 100) if total > 0 else 0, 1)
+        }
+
+    return render_template('jwg.html',
+                         test_stats=test_stats,
+                         categories=CATEGORIES,
+                         user=session.get('user'),
+                         name=session.get('name'))
+
+
+@app.route('/jwg/verify/<test_id>')
+@jwg_required
+def jwg_verify_test(test_id):
+    """View questions for a specific test to verify references."""
+    all_tests = get_all_tests()
+    if test_id not in all_tests:
+        return "Test not found", 404
+
+    test = all_tests[test_id]
+    questions = test.get('questions', [])
+    verifications = get_question_verifications(test_id)
+
+    # Add verification status to each question
+    for q in questions:
+        key = f"{test_id}_{q['id']}"
+        if key in verifications:
+            q['verified'] = True
+            q['verified_by'] = verifications[key]['verifier_name']
+            q['verified_at'] = verifications[key]['verified_at']
+        else:
+            q['verified'] = False
+
+    return render_template('jwg_verify.html',
+                         test_id=test_id,
+                         test_name=test['name'],
+                         questions=questions,
+                         user=session.get('user'),
+                         name=session.get('name'))
+
+
+@app.route('/jwg/verify-question', methods=['POST'])
+@jwg_required
+def jwg_verify_question():
+    """API endpoint to verify or unverify a question reference."""
+    data = request.json
+    test_id = data.get('test_id')
+    question_id = data.get('question_id')
+    action = data.get('action', 'verify')  # 'verify' or 'unverify'
+
+    if not test_id or question_id is None:
+        return jsonify({'error': 'test_id and question_id are required'}), 400
+
+    # Verify the test and question exist
+    all_tests = get_all_tests()
+    if test_id not in all_tests:
+        return jsonify({'error': 'Test not found'}), 404
+
+    questions = all_tests[test_id].get('questions', [])
+    question_exists = any(q['id'] == question_id for q in questions)
+    if not question_exists:
+        return jsonify({'error': 'Question not found'}), 404
+
+    username = session.get('user')
+    name = session.get('name')
+
+    if action == 'verify':
+        success = save_question_verification(test_id, question_id, username, name)
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Question verified',
+                'verified_by': name,
+                'verified_at': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({'error': 'Failed to save verification'}), 500
+    elif action == 'unverify':
+        success = remove_question_verification(test_id, question_id)
+        if success:
+            return jsonify({'success': True, 'message': 'Verification removed'})
+        else:
+            return jsonify({'error': 'Failed to remove verification'}), 500
+    else:
+        return jsonify({'error': 'Invalid action'}), 400
+
+
+@app.route('/jwg/update-question', methods=['POST'])
+@jwg_required
+def jwg_update_question():
+    """API endpoint for JWG to update a question's text or reference."""
+    data = request.json
+    test_id = data.get('test_id')
+    question_id = data.get('question_id')
+    new_question = data.get('question')
+    new_reference = data.get('correct_section')
+    new_correct = data.get('correct')  # Index of correct answer
+    new_options = data.get('options')  # List of 4 options
+
+    if not test_id or question_id is None:
+        return jsonify({'error': 'test_id and question_id are required'}), 400
+
+    # Get the test
+    all_tests = get_all_tests()
+    if test_id not in all_tests:
+        return jsonify({'error': 'Test not found'}), 404
+
+    test = all_tests[test_id]
+    questions = test.get('questions', [])
+
+    # Find and update the question
+    updated = False
+    for q in questions:
+        if q['id'] == question_id:
+            if new_question:
+                q['question'] = new_question
+            if new_reference:
+                q['correct_section'] = new_reference
+            if new_correct is not None:
+                q['correct'] = new_correct
+            if new_options and len(new_options) == 4:
+                q['options'] = new_options
+            updated = True
+            break
+
+    if not updated:
+        return jsonify({'error': 'Question not found'}), 404
+
+    # Save the updated test
+    test['questions'] = questions
+    save_test(test_id, test)
+
+    # Log the change
+    username = session.get('user')
+    name = session.get('name')
+    print(f"JWG Update: {name} ({username}) updated question {question_id} in {test_id}")
+
+    return jsonify({
+        'success': True,
+        'message': 'Question updated successfully',
+        'updated_by': name
+    })
+
+
+@app.route('/admin/add-jwg', methods=['POST'])
+@admin_required
+def admin_add_jwg():
+    """Add a new JWG member."""
+    data = request.json
+    username = data.get('username', '').lower()
+    password = data.get('password', 'password')
+    name = data.get('name', '')
+
+    if not username or not name:
+        return jsonify({'error': 'Username and name are required'}), 400
+
+    if get_user(username):
+        return jsonify({'error': 'Username already exists'}), 400
+
+    save_user(username, {
+        'password': password,
+        'role': 'jwg',
+        'name': name,
+        'categories': []
+    })
+
+    return jsonify({'success': True, 'message': f'JWG member {name} added'})
+
+
+@app.route('/admin/delete-jwg/<username>', methods=['POST'])
+@admin_required
+def admin_delete_jwg(username):
+    """Delete a JWG member."""
+    user = get_user(username)
+    if not user or user['role'] != 'jwg':
+        return jsonify({'error': 'JWG member not found'}), 404
+
+    delete_user(username)
+    return jsonify({'success': True, 'message': 'JWG member deleted'})
 
 
 if __name__ == '__main__':
