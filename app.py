@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""USPA Judge Test - Web-based testing application for USPA judges.
-   Using Supabase REST API for persistent data storage.
-"""
+"""USPA Judge Test - Web-based testing application for USPA judges."""
 
 import os
 import uuid
@@ -45,21 +43,7 @@ def normalize_section_ref(section):
 
     return s
 
-# Database support - Supabase REST API for production, SQLite for local dev
-import sqlite3  # Always available as fallback
-try:
-    from supabase import create_client, Client
-    SUPABASE_URL = os.environ.get('SUPABASE_URL')
-    SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
-    if SUPABASE_URL and SUPABASE_KEY:
-        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-        USE_SUPABASE = True
-    else:
-        USE_SUPABASE = False
-        supabase = None
-except ImportError:
-    USE_SUPABASE = False
-    supabase = None
+import sqlite3
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'uspa-judge-test-secret-key-change-in-production')
@@ -103,165 +87,109 @@ def close_db(exception):
 
 def init_db():
     """Initialize the database with tables and default users."""
-    if USE_SUPABASE:
-        # For Supabase, check if admin exists and create if not
-        try:
-            result = supabase.table('users').select('username').eq('username', 'admin').execute()
-            if not result.data:
-                supabase.table('users').insert({
-                    'username': 'admin',
-                    'password': 'admin123',
-                    'role': 'admin',
-                    'name': 'Administrator',
-                    'categories': '[]',
-                    'assigned_tests': '[]'
-                }).execute()
-        except Exception as e:
-            print(f"Supabase init error (tables may need to be created manually): {e}")
-    else:
-        conn = sqlite3.connect('judgetest.db')
-        cursor = conn.cursor()
+    conn = sqlite3.connect('judgetest.db')
+    cursor = conn.cursor()
 
-        # Create users table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY,
-                password TEXT NOT NULL,
-                role TEXT NOT NULL,
-                name TEXT NOT NULL,
-                categories TEXT DEFAULT '[]',
-                assigned_tests TEXT DEFAULT '[]'
-            )
-        ''')
+    # Create users table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL,
+            name TEXT NOT NULL,
+            categories TEXT DEFAULT '[]',
+            assigned_tests TEXT DEFAULT '[]',
+            proctor_level TEXT DEFAULT 'regional',
+            expiration_date TEXT DEFAULT ''
+        )
+    ''')
 
-        # Add assigned_tests column if it doesn't exist (migration for SQLite)
-        try:
-            cursor.execute('ALTER TABLE users ADD COLUMN assigned_tests TEXT DEFAULT "[]"')
-        except:
-            pass  # Column already exists
+    # Create test_results table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS test_results (
+            result_id TEXT PRIMARY KEY,
+            data TEXT NOT NULL
+        )
+    ''')
 
-        # Create test_results table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS test_results (
-                result_id TEXT PRIMARY KEY,
-                data TEXT NOT NULL
-            )
-        ''')
+    # Create tests table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tests (
+            test_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            chapter TEXT NOT NULL,
+            passing_score INTEGER NOT NULL,
+            questions TEXT NOT NULL
+        )
+    ''')
 
-        # Create tests table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tests (
-                test_id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                chapter TEXT NOT NULL,
-                passing_score INTEGER NOT NULL,
-                questions TEXT NOT NULL
-            )
-        ''')
+    # Create custom_questions table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS custom_questions (
+            test_id TEXT PRIMARY KEY,
+            data TEXT NOT NULL
+        )
+    ''')
 
-        # Create custom_questions table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS custom_questions (
-                test_id TEXT PRIMARY KEY,
-                data TEXT NOT NULL
-            )
-        ''')
+    # Create question_verifications table for JWG
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS question_verifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            test_id TEXT NOT NULL,
+            question_id INTEGER NOT NULL,
+            verified_by TEXT NOT NULL,
+            verified_at TEXT NOT NULL,
+            verifier_name TEXT NOT NULL,
+            UNIQUE(test_id, question_id)
+        )
+    ''')
 
-        # Create question_verifications table for JWG
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS question_verifications (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                test_id TEXT NOT NULL,
-                question_id INTEGER NOT NULL,
-                verified_by TEXT NOT NULL,
-                verified_at TEXT NOT NULL,
-                verifier_name TEXT NOT NULL,
-                UNIQUE(test_id, question_id)
-            )
-        ''')
+    # Add default admin if not exists
+    cursor.execute('SELECT username FROM users WHERE username = ?', ('admin',))
+    if not cursor.fetchone():
+        cursor.execute(
+            'INSERT INTO users (username, password, role, name, categories, assigned_tests) VALUES (?, ?, ?, ?, ?, ?)',
+            ('admin', 'admin123', 'admin', 'Administrator', '[]', '[]')
+        )
 
-        # Add default admin if not exists
-        cursor.execute('SELECT username FROM users WHERE username = ?', ('admin',))
-        if not cursor.fetchone():
-            cursor.execute(
-                'INSERT INTO users (username, password, role, name, categories, assigned_tests) VALUES (?, ?, ?, ?, ?, ?)',
-                ('admin', 'admin123', 'admin', 'Administrator', '[]', '[]')
-            )
-
-        conn.commit()
-        conn.close()
+    conn.commit()
+    conn.close()
 
 
 def get_user(username):
     """Get user from database."""
-    if USE_SUPABASE:
-        result = supabase.table('users').select('*').eq('username', username).execute()
-        if result.data:
-            row = result.data[0]
-            return {
-                'password': row['password'],
-                'role': row['role'],
-                'name': row['name'],
-                'categories': json.loads(row['categories']) if row['categories'] else [],
-                'assigned_tests': json.loads(row['assigned_tests']) if row.get('assigned_tests') else [],
-                'proctor_level': row.get('proctor_level', 'regional'),
-                'expiration_date': row.get('expiration_date', '')
-            }
-        return None
-    else:
-        db = get_sqlite_db()
-        cursor = db.execute('SELECT * FROM users WHERE username = ?', (username,))
-        row = cursor.fetchone()
-        if row:
-            assigned_tests = row['assigned_tests'] if 'assigned_tests' in row.keys() else '[]'
-            proctor_level = row['proctor_level'] if 'proctor_level' in row.keys() else 'regional'
-            expiration_date = row['expiration_date'] if 'expiration_date' in row.keys() else ''
-            return {
-                'password': row['password'],
-                'role': row['role'],
-                'name': row['name'],
-                'categories': json.loads(row['categories']),
-                'assigned_tests': json.loads(assigned_tests) if assigned_tests else [],
-                'proctor_level': proctor_level,
-                'expiration_date': expiration_date or ''
-            }
-        return None
+    db = get_sqlite_db()
+    cursor = db.execute('SELECT * FROM users WHERE username = ?', (username,))
+    row = cursor.fetchone()
+    if row:
+        return {
+            'password': row['password'],
+            'role': row['role'],
+            'name': row['name'],
+            'categories': json.loads(row['categories']),
+            'assigned_tests': json.loads(row['assigned_tests']) if row['assigned_tests'] else [],
+            'proctor_level': row['proctor_level'] or 'regional',
+            'expiration_date': row['expiration_date'] or ''
+        }
+    return None
 
 
 def get_all_users():
     """Get all users from database."""
-    if USE_SUPABASE:
-        result = supabase.table('users').select('*').execute()
-        users = {}
-        for row in result.data:
-            users[row['username']] = {
-                'password': row['password'],
-                'role': row['role'],
-                'name': row['name'],
-                'categories': json.loads(row['categories']) if row['categories'] else [],
-                'assigned_tests': json.loads(row['assigned_tests']) if row.get('assigned_tests') else [],
-                'proctor_level': row.get('proctor_level', 'regional'),
-                'expiration_date': row.get('expiration_date', '')
-            }
-        return users
-    else:
-        db = get_sqlite_db()
-        cursor = db.execute('SELECT * FROM users')
-        users = {}
-        for row in cursor.fetchall():
-            assigned_tests = row['assigned_tests'] if 'assigned_tests' in row.keys() else '[]'
-            proctor_level = row['proctor_level'] if 'proctor_level' in row.keys() else 'regional'
-            expiration_date = row['expiration_date'] if 'expiration_date' in row.keys() else ''
-            users[row['username']] = {
-                'password': row['password'],
-                'role': row['role'],
-                'name': row['name'],
-                'categories': json.loads(row['categories']),
-                'assigned_tests': json.loads(assigned_tests) if assigned_tests else [],
-                'proctor_level': proctor_level,
-                'expiration_date': expiration_date or ''
-            }
-        return users
+    db = get_sqlite_db()
+    cursor = db.execute('SELECT * FROM users')
+    users = {}
+    for row in cursor.fetchall():
+        users[row['username']] = {
+            'password': row['password'],
+            'role': row['role'],
+            'name': row['name'],
+            'categories': json.loads(row['categories']),
+            'assigned_tests': json.loads(row['assigned_tests']) if row['assigned_tests'] else [],
+            'proctor_level': row['proctor_level'] or 'regional',
+            'expiration_date': row['expiration_date'] or ''
+        }
+    return users
 
 
 def save_user(username, user_data):
@@ -269,227 +197,108 @@ def save_user(username, user_data):
     categories = json.dumps(user_data.get('categories', []))
     assigned_tests = json.dumps(user_data.get('assigned_tests', []))
     proctor_level = user_data.get('proctor_level', 'regional')
-    expiration_date = user_data.get('expiration_date', '') or None
-    if USE_SUPABASE:
-        # Try update first, then insert if not exists
-        existing = supabase.table('users').select('username').eq('username', username).execute()
-        if existing.data:
-            supabase.table('users').update({
-                'password': user_data['password'],
-                'role': user_data['role'],
-                'name': user_data['name'],
-                'categories': categories,
-                'assigned_tests': assigned_tests,
-                'proctor_level': proctor_level,
-                'expiration_date': expiration_date
-            }).eq('username', username).execute()
-        else:
-            supabase.table('users').insert({
-                'username': username,
-                'password': user_data['password'],
-                'role': user_data['role'],
-                'name': user_data['name'],
-                'categories': categories,
-                'assigned_tests': assigned_tests,
-                'proctor_level': proctor_level,
-                'expiration_date': expiration_date
-            }).execute()
-    else:
-        db = get_sqlite_db()
-        db.execute('''
-            INSERT OR REPLACE INTO users (username, password, role, name, categories, assigned_tests, proctor_level)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (username, user_data['password'], user_data['role'], user_data['name'], categories, assigned_tests, proctor_level))
-        db.commit()
+    expiration_date = user_data.get('expiration_date', '') or ''
+    db = get_sqlite_db()
+    db.execute('''
+        INSERT OR REPLACE INTO users (username, password, role, name, categories, assigned_tests, proctor_level, expiration_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (username, user_data['password'], user_data['role'], user_data['name'], categories, assigned_tests, proctor_level, expiration_date))
+    db.commit()
 
 
 def delete_user(username):
     """Delete user from database."""
-    if USE_SUPABASE:
-        supabase.table('users').delete().eq('username', username).execute()
-    else:
-        db = get_sqlite_db()
-        db.execute('DELETE FROM users WHERE username = ?', (username,))
-        db.commit()
+    db = get_sqlite_db()
+    db.execute('DELETE FROM users WHERE username = ?', (username,))
+    db.commit()
 
 
 def get_test_result(result_id):
     """Get test result from database."""
-    if USE_SUPABASE:
-        result = supabase.table('test_results').select('data').eq('result_id', result_id).execute()
-        if result.data:
-            return json.loads(result.data[0]['data'])
-        return None
-    else:
-        db = get_sqlite_db()
-        cursor = db.execute('SELECT data FROM test_results WHERE result_id = ?', (result_id,))
-        row = cursor.fetchone()
-        if row:
-            return json.loads(row['data'])
-        return None
+    db = get_sqlite_db()
+    cursor = db.execute('SELECT data FROM test_results WHERE result_id = ?', (result_id,))
+    row = cursor.fetchone()
+    if row:
+        return json.loads(row['data'])
+    return None
 
 
 def get_all_test_results():
     """Get all test results from database."""
-    if USE_SUPABASE:
-        result = supabase.table('test_results').select('result_id, data').execute()
-        results = {}
-        for row in result.data:
-            results[row['result_id']] = json.loads(row['data'])
-        return results
-    else:
-        db = get_sqlite_db()
-        cursor = db.execute('SELECT result_id, data FROM test_results')
-        results = {}
-        for row in cursor.fetchall():
-            results[row['result_id']] = json.loads(row['data'])
-        return results
+    db = get_sqlite_db()
+    cursor = db.execute('SELECT result_id, data FROM test_results')
+    results = {}
+    for row in cursor.fetchall():
+        results[row['result_id']] = json.loads(row['data'])
+    return results
 
 
 def save_test_result(result_id, result_data):
     """Save test result to database."""
-    if USE_SUPABASE:
-        # Try update first, then insert if not exists
-        existing = supabase.table('test_results').select('result_id').eq('result_id', result_id).execute()
-        if existing.data:
-            supabase.table('test_results').update({
-                'data': json.dumps(result_data)
-            }).eq('result_id', result_id).execute()
-        else:
-            supabase.table('test_results').insert({
-                'result_id': result_id,
-                'data': json.dumps(result_data)
-            }).execute()
-    else:
-        db = get_sqlite_db()
-        db.execute(
-            'INSERT OR REPLACE INTO test_results (result_id, data) VALUES (?, ?)',
-            (result_id, json.dumps(result_data))
-        )
-        db.commit()
+    db = get_sqlite_db()
+    db.execute(
+        'INSERT OR REPLACE INTO test_results (result_id, data) VALUES (?, ?)',
+        (result_id, json.dumps(result_data))
+    )
+    db.commit()
 
 
 def get_custom_questions(test_id):
     """Get custom questions for a test from database."""
-    if USE_SUPABASE:
-        result = supabase.table('custom_questions').select('data').eq('test_id', test_id).execute()
-        if result.data:
-            return json.loads(result.data[0]['data'])
-        return None
-    else:
-        db = get_sqlite_db()
-        cursor = db.execute('SELECT data FROM custom_questions WHERE test_id = ?', (test_id,))
-        row = cursor.fetchone()
-        if row:
-            return json.loads(row['data'])
-        return None
+    db = get_sqlite_db()
+    cursor = db.execute('SELECT data FROM custom_questions WHERE test_id = ?', (test_id,))
+    row = cursor.fetchone()
+    if row:
+        return json.loads(row['data'])
+    return None
 
 
 def save_custom_questions(test_id, questions_data):
     """Save custom questions for a test to database."""
-    if USE_SUPABASE:
-        existing = supabase.table('custom_questions').select('test_id').eq('test_id', test_id).execute()
-        if existing.data:
-            supabase.table('custom_questions').update({
-                'data': json.dumps(questions_data)
-            }).eq('test_id', test_id).execute()
-        else:
-            supabase.table('custom_questions').insert({
-                'test_id': test_id,
-                'data': json.dumps(questions_data)
-            }).execute()
-    else:
-        db = get_sqlite_db()
-        db.execute(
-            'INSERT OR REPLACE INTO custom_questions (test_id, data) VALUES (?, ?)',
-            (test_id, json.dumps(questions_data))
-        )
-        db.commit()
+    db = get_sqlite_db()
+    db.execute(
+        'INSERT OR REPLACE INTO custom_questions (test_id, data) VALUES (?, ?)',
+        (test_id, json.dumps(questions_data))
+    )
+    db.commit()
 
 
 def get_question_verifications(test_id=None):
     """Get question verifications, optionally filtered by test_id."""
-    if USE_SUPABASE:
-        try:
-            if test_id:
-                result = supabase.table('question_verifications').select('*').eq('test_id', test_id).execute()
-            else:
-                result = supabase.table('question_verifications').select('*').execute()
-            verifications = {}
-            for row in result.data:
-                key = f"{row['test_id']}_{row['question_id']}"
-                verifications[key] = {
-                    'verified_by': row['verified_by'],
-                    'verified_at': row['verified_at'],
-                    'verifier_name': row['verifier_name']
-                }
-            return verifications
-        except Exception as e:
-            print(f"Error getting verifications: {e}")
-            return {}
+    db = get_sqlite_db()
+    if test_id:
+        cursor = db.execute('SELECT * FROM question_verifications WHERE test_id = ?', (test_id,))
     else:
-        db = get_sqlite_db()
-        if test_id:
-            cursor = db.execute('SELECT * FROM question_verifications WHERE test_id = ?', (test_id,))
-        else:
-            cursor = db.execute('SELECT * FROM question_verifications')
-        verifications = {}
-        for row in cursor.fetchall():
-            key = f"{row['test_id']}_{row['question_id']}"
-            verifications[key] = {
-                'verified_by': row['verified_by'],
-                'verified_at': row['verified_at'],
-                'verifier_name': row['verifier_name']
-            }
-        return verifications
+        cursor = db.execute('SELECT * FROM question_verifications')
+    verifications = {}
+    for row in cursor.fetchall():
+        key = f"{row['test_id']}_{row['question_id']}"
+        verifications[key] = {
+            'verified_by': row['verified_by'],
+            'verified_at': row['verified_at'],
+            'verifier_name': row['verifier_name']
+        }
+    return verifications
 
 
 def save_question_verification(test_id, question_id, username, name):
     """Save a question verification."""
     verified_at = datetime.now().isoformat()
-    if USE_SUPABASE:
-        try:
-            existing = supabase.table('question_verifications').select('id').eq('test_id', test_id).eq('question_id', question_id).execute()
-            if existing.data:
-                supabase.table('question_verifications').update({
-                    'verified_by': username,
-                    'verified_at': verified_at,
-                    'verifier_name': name
-                }).eq('test_id', test_id).eq('question_id', question_id).execute()
-            else:
-                supabase.table('question_verifications').insert({
-                    'test_id': test_id,
-                    'question_id': question_id,
-                    'verified_by': username,
-                    'verified_at': verified_at,
-                    'verifier_name': name
-                }).execute()
-        except Exception as e:
-            print(f"Error saving verification: {e}")
-            return False
-    else:
-        db = get_sqlite_db()
-        db.execute('''
-            INSERT OR REPLACE INTO question_verifications
-            (test_id, question_id, verified_by, verified_at, verifier_name)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (test_id, question_id, username, verified_at, name))
-        db.commit()
+    db = get_sqlite_db()
+    db.execute('''
+        INSERT OR REPLACE INTO question_verifications
+        (test_id, question_id, verified_by, verified_at, verifier_name)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (test_id, question_id, username, verified_at, name))
+    db.commit()
     return True
 
 
 def remove_question_verification(test_id, question_id):
     """Remove a question verification."""
-    if USE_SUPABASE:
-        try:
-            supabase.table('question_verifications').delete().eq('test_id', test_id).eq('question_id', question_id).execute()
-        except Exception as e:
-            print(f"Error removing verification: {e}")
-            return False
-    else:
-        db = get_sqlite_db()
-        db.execute('DELETE FROM question_verifications WHERE test_id = ? AND question_id = ?', (test_id, question_id))
-        db.commit()
+    db = get_sqlite_db()
+    db.execute('DELETE FROM question_verifications WHERE test_id = ? AND question_id = ?', (test_id, question_id))
+    db.commit()
     return True
 
 
@@ -507,37 +316,21 @@ def get_test_questions(test_id):
 
 def get_all_tests():
     """Get all tests from database, falling back to defaults if not seeded."""
-    if USE_SUPABASE:
-        try:
-            result = supabase.table('tests').select('*').execute()
-            if result.data:
-                tests = {}
-                for row in result.data:
-                    tests[row['test_id']] = {
-                        'name': row['name'],
-                        'chapter': row['chapter'],
-                        'passing_score': row['passing_score'],
-                        'questions': json.loads(row['questions']) if row['questions'] else []
-                    }
-                return tests
-        except Exception as e:
-            print(f"Error loading tests from database: {e}")
-    else:
-        try:
-            db = get_sqlite_db()
-            cursor = db.execute('SELECT * FROM tests')
-            tests = {}
-            for row in cursor.fetchall():
-                tests[row['test_id']] = {
-                    'name': row['name'],
-                    'chapter': row['chapter'],
-                    'passing_score': row['passing_score'],
-                    'questions': json.loads(row['questions']) if row['questions'] else []
-                }
-            if tests:
-                return tests
-        except Exception as e:
-            print(f"Error loading tests from SQLite: {e}")
+    try:
+        db = get_sqlite_db()
+        cursor = db.execute('SELECT * FROM tests')
+        tests = {}
+        for row in cursor.fetchall():
+            tests[row['test_id']] = {
+                'name': row['name'],
+                'chapter': row['chapter'],
+                'passing_score': row['passing_score'],
+                'questions': json.loads(row['questions']) if row['questions'] else []
+            }
+        if tests:
+            return tests
+    except Exception as e:
+        print(f"Error loading tests from SQLite: {e}")
     # Fallback to default tests
     return DEFAULT_TESTS
 
@@ -550,31 +343,13 @@ def get_test(test_id):
 
 def save_test(test_id, test_data):
     """Save a test to database."""
-    if USE_SUPABASE:
-        existing = supabase.table('tests').select('test_id').eq('test_id', test_id).execute()
-        if existing.data:
-            supabase.table('tests').update({
-                'name': test_data['name'],
-                'chapter': test_data['chapter'],
-                'passing_score': test_data['passing_score'],
-                'questions': json.dumps(test_data['questions'])
-            }).eq('test_id', test_id).execute()
-        else:
-            supabase.table('tests').insert({
-                'test_id': test_id,
-                'name': test_data['name'],
-                'chapter': test_data['chapter'],
-                'passing_score': test_data['passing_score'],
-                'questions': json.dumps(test_data['questions'])
-            }).execute()
-    else:
-        db = get_sqlite_db()
-        db.execute('''
-            INSERT OR REPLACE INTO tests (test_id, name, chapter, passing_score, questions)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (test_id, test_data['name'], test_data['chapter'],
-              test_data['passing_score'], json.dumps(test_data['questions'])))
-        db.commit()
+    db = get_sqlite_db()
+    db.execute('''
+        INSERT OR REPLACE INTO tests (test_id, name, chapter, passing_score, questions)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (test_id, test_data['name'], test_data['chapter'],
+          test_data['passing_score'], json.dumps(test_data['questions'])))
+    db.commit()
 
 
 def seed_tests_to_database():
@@ -1382,7 +1157,7 @@ def admin_get_tests():
         'tests': [{'id': tid, 'name': t['name'], 'chapter': t['chapter'],
                    'passing_score': t['passing_score'], 'question_count': len(t.get('questions', []))}
                   for tid, t in tests.items()],
-        'source': 'database' if USE_SUPABASE else 'local'
+        'source': 'local'
     })
 
 

@@ -22,9 +22,6 @@ fi
 
 # Get environment variables from user
 echo ""
-echo -e "${YELLOW}Enter your Supabase credentials (press Enter to skip if using SQLite):${NC}"
-read -p "SUPABASE_URL: " SUPABASE_URL
-read -p "SUPABASE_KEY: " SUPABASE_KEY
 read -p "SECRET_KEY (or press Enter for auto-generated): " SECRET_KEY
 
 if [ -z "$SECRET_KEY" ]; then
@@ -71,8 +68,6 @@ User=$USER
 Group=$USER
 WorkingDirectory=/home/$USER/judgetest
 Environment="PATH=/home/$USER/judgetest/venv/bin"
-Environment="SUPABASE_URL=$SUPABASE_URL"
-Environment="SUPABASE_KEY=$SUPABASE_KEY"
 Environment="SECRET_KEY=$SECRET_KEY"
 ExecStart=/home/$USER/judgetest/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:5000 app:app
 Restart=always
