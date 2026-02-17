@@ -47,6 +47,7 @@ import sqlite3
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'uspa-judge-test-secret-key-change-in-production')
+DATABASE_PATH = os.environ.get('DATABASE_PATH', 'judgetest.db')
 
 # Categories based on chapters
 CATEGORIES = {
@@ -72,7 +73,7 @@ USER_ROLES = ['student', 'proctor', 'jwg', 'admin']
 def get_sqlite_db():
     """Get SQLite database connection for local development."""
     if 'db' not in g:
-        g.db = sqlite3.connect('judgetest.db')
+        g.db = sqlite3.connect(DATABASE_PATH)
         g.db.row_factory = sqlite3.Row
     return g.db
 
@@ -87,7 +88,7 @@ def close_db(exception):
 
 def init_db():
     """Initialize the database with tables and default users."""
-    conn = sqlite3.connect('judgetest.db')
+    conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
 
     # Create users table
