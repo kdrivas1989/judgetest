@@ -241,8 +241,15 @@ def init_db():
         if not cursor.fetchone():
             cursor.execute(
                 'INSERT INTO users (username, password, role, name, categories, assigned_tests) VALUES (?, ?, ?, ?, ?, ?)',
-                (email, 'password', 'jwg', name, '[]', '[]')
+                (email, 'password', 'jwg,admin' if email == 'kdrivas1989@gmail.com' else 'jwg', name, '[]', '[]')
             )
+
+    # Ensure kdrivas1989@gmail.com has admin role
+    cursor.execute('SELECT role FROM users WHERE username = ?', ('kdrivas1989@gmail.com',))
+    row = cursor.fetchone()
+    if row and 'admin' not in row[0]:
+        cursor.execute('UPDATE users SET role = ? WHERE username = ?',
+                       (row[0] + ',admin', 'kdrivas1989@gmail.com'))
 
     conn.commit()
     conn.close()
