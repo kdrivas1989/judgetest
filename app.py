@@ -62,6 +62,7 @@ import sqlite3
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'uspa-judge-test-secret-key-change-in-production')
 DATABASE_PATH = os.environ.get('DATABASE_PATH', 'judgetest.db')
+os.makedirs(os.path.dirname(DATABASE_PATH) or '.', exist_ok=True)
 
 # Categories based on chapters
 CATEGORIES = {
