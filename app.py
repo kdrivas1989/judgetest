@@ -5,8 +5,22 @@ import os
 import uuid
 import json
 import re
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime
+from pathlib import Path
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, g
+
+# Load .env file if it exists
+env_path = Path(__file__).parent / '.env'
+if env_path.exists():
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ.setdefault(key.strip(), value.strip())
 from functools import wraps
 from questions import TESTS as DEFAULT_TESTS  # Fallback for initial seeding
 
@@ -68,6 +82,51 @@ PROCTOR_LEVELS = ['regional', 'national', 'examiner']
 
 # User roles
 USER_ROLES = ['student', 'proctor', 'jwg', 'admin']
+
+# Email configuration
+SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))
+SMTP_USERNAME = os.environ.get('SMTP_USERNAME', '')
+SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
+SMTP_FROM_EMAIL = os.environ.get('SMTP_FROM_EMAIL', SMTP_USERNAME)
+
+
+def send_login_email(to_email, name, username, password, role='member'):
+    """Send login credentials via email."""
+    if not SMTP_USERNAME or not SMTP_PASSWORD:
+        return False, 'Email not configured. Set SMTP_USERNAME and SMTP_PASSWORD environment variables.'
+
+    msg = MIMEMultipart()
+    msg['From'] = SMTP_FROM_EMAIL
+    msg['To'] = to_email
+    msg['Subject'] = 'USPA Judge Test - Your Login Information'
+
+    site_url = os.environ.get('SITE_URL', 'http://localhost:5000')
+    body = f"""Hello {name},
+
+You have been added to the USPA Judge Test system.
+
+Your login credentials:
+  Email: {username}
+  Password: {password}
+
+Please log in at: {site_url}
+
+We recommend changing your password after your first login.
+
+- USPA Judge Test Admin
+"""
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        server.sendmail(SMTP_FROM_EMAIL, to_email, msg.as_string())
+        server.quit()
+        return True, 'Email sent successfully'
+    except Exception as e:
+        return False, str(e)
 
 
 def get_sqlite_db():
@@ -145,6 +204,19 @@ def init_db():
         )
     ''')
 
+    # Create question_changes table for JWG edit audit trail
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS question_changes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            test_id TEXT NOT NULL,
+            question_id INTEGER NOT NULL,
+            changed_by TEXT NOT NULL,
+            changer_name TEXT NOT NULL,
+            changed_at TEXT NOT NULL,
+            changes TEXT NOT NULL
+        )
+    ''')
+
     # Add default admin if not exists
     cursor.execute('SELECT username FROM users WHERE username = ?', ('admin',))
     if not cursor.fetchone():
@@ -152,6 +224,24 @@ def init_db():
             'INSERT INTO users (username, password, role, name, categories, assigned_tests) VALUES (?, ?, ?, ?, ?, ?)',
             ('admin', 'admin123', 'admin', 'Administrator', '[]', '[]')
         )
+
+    # Seed default JWG members if not exists
+    jwg_members = [
+        ('crishoward4@gmail.com', 'Cris Howard'),
+        ('near.h.nee@gmail.com', 'Hao Ni'),
+        ('jrees@uspa.org', 'Jim Rees'),
+        ('ironeddie42@gmail.com', 'Steve Hubbard'),
+        ('sudeepkodavati@gmail.com', 'Sudeep Kodavati'),
+        ('bryce@robotlords.com', 'Bryce Witcher'),
+        ('kdrivas1989@gmail.com', 'Kevin Drivas'),
+    ]
+    for email, name in jwg_members:
+        cursor.execute('SELECT username FROM users WHERE username = ?', (email,))
+        if not cursor.fetchone():
+            cursor.execute(
+                'INSERT INTO users (username, password, role, name, categories, assigned_tests) VALUES (?, ?, ?, ?, ?, ?)',
+                (email, 'password', 'jwg', name, '[]', '[]')
+            )
 
     conn.commit()
     conn.close()
@@ -205,6 +295,30 @@ def save_user(username, user_data):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ''', (username, user_data['password'], user_data['role'], user_data['name'], categories, assigned_tests, proctor_level, expiration_date))
     db.commit()
+
+
+def has_role(user_or_role_str, role):
+    """Check if a user (or role string) has a given role."""
+    if isinstance(user_or_role_str, dict):
+        role_str = user_or_role_str.get('role', '')
+    else:
+        role_str = user_or_role_str or ''
+    return role in [r.strip() for r in role_str.split(',')]
+
+
+def add_role(existing_role_str, new_role):
+    """Add a role to a comma-separated role string if not already present."""
+    roles = [r.strip() for r in (existing_role_str or '').split(',') if r.strip()]
+    if new_role not in roles:
+        roles.append(new_role)
+    return ','.join(roles)
+
+
+def remove_role(existing_role_str, role_to_remove):
+    """Remove a role from a comma-separated role string."""
+    roles = [r.strip() for r in (existing_role_str or '').split(',') if r.strip()]
+    roles = [r for r in roles if r != role_to_remove]
+    return ','.join(roles)
 
 
 def delete_user(username):
@@ -303,6 +417,37 @@ def remove_question_verification(test_id, question_id):
     return True
 
 
+def save_question_change(test_id, question_id, username, name, changes):
+    """Save a question change record for audit trail."""
+    changed_at = datetime.now().isoformat()
+    db = get_sqlite_db()
+    db.execute('''
+        INSERT INTO question_changes
+        (test_id, question_id, changed_by, changer_name, changed_at, changes)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (test_id, question_id, username, name, changed_at, json.dumps(changes)))
+    db.commit()
+
+
+def get_question_changes(test_id, question_id):
+    """Get change history for a question, newest first."""
+    db = get_sqlite_db()
+    cursor = db.execute(
+        'SELECT * FROM question_changes WHERE test_id = ? AND question_id = ? ORDER BY changed_at DESC',
+        (test_id, question_id)
+    )
+    changes = []
+    for row in cursor.fetchall():
+        changes.append({
+            'id': row['id'],
+            'changed_by': row['changed_by'],
+            'changer_name': row['changer_name'],
+            'changed_at': row['changed_at'],
+            'changes': json.loads(row['changes'])
+        })
+    return changes
+
+
 def get_test_questions(test_id):
     """Get questions for a test from database."""
     # First try to get from tests table in database
@@ -387,7 +532,8 @@ def proctor_required(f):
     def decorated_function(*args, **kwargs):
         if 'user' not in session:
             return redirect(url_for('login'))
-        if session.get('role') not in ['proctor', 'admin']:
+        role = session.get('role', '')
+        if not (has_role(role, 'proctor') or has_role(role, 'admin')):
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
@@ -398,7 +544,7 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if 'user' not in session:
             return redirect(url_for('login'))
-        if session.get('role') != 'admin':
+        if not has_role(session.get('role', ''), 'admin'):
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
@@ -410,7 +556,8 @@ def jwg_required(f):
     def decorated_function(*args, **kwargs):
         if 'user' not in session:
             return redirect(url_for('login'))
-        if session.get('role') not in ['jwg', 'admin']:
+        role = session.get('role', '')
+        if not (has_role(role, 'jwg') or has_role(role, 'admin')):
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
@@ -422,7 +569,7 @@ def get_proctor_tests(username, include_general=True):
     all_tests = get_all_tests()
     if not user:
         return {}
-    if user['role'] == 'admin':
+    if has_role(user, 'admin'):
         return all_tests  # Admin sees all tests
 
     available_tests = {}
@@ -461,12 +608,12 @@ def index():
     if 'user' not in session:
         return redirect(url_for('login'))
 
-    role = session.get('role')
-    if role == 'admin':
+    role = session.get('role', '')
+    if has_role(role, 'admin'):
         return redirect(url_for('admin_dashboard'))
-    elif role == 'proctor':
+    elif has_role(role, 'proctor'):
         return redirect(url_for('proctor_dashboard'))
-    elif role == 'jwg':
+    elif has_role(role, 'jwg'):
         return redirect(url_for('jwg_dashboard'))
 
     # Get student's assigned tests
@@ -509,7 +656,7 @@ def logout():
 @app.route('/test/<test_id>')
 @login_required
 def take_test(test_id):
-    if session.get('role') != 'student':
+    if not has_role(session.get('role', ''), 'student'):
         return redirect(url_for('index'))
 
     all_tests = get_all_tests()
@@ -535,7 +682,7 @@ def take_test(test_id):
 @app.route('/submit-test/<test_id>', methods=['POST'])
 @login_required
 def submit_test(test_id):
-    if session.get('role') != 'student':
+    if not has_role(session.get('role', ''), 'student'):
         return jsonify({'error': 'Unauthorized'}), 403
 
     all_tests = get_all_tests()
@@ -625,20 +772,20 @@ def view_results(result_id):
     if not result:
         return "Results not found", 404
 
-    role = session.get('role')
+    role = session.get('role', '')
 
     # Students can only view their own results
-    if role == 'student' and result['username'] != session.get('user'):
+    if has_role(role, 'student') and not has_role(role, 'proctor') and not has_role(role, 'admin') and result['username'] != session.get('user'):
         return "Unauthorized", 403
 
     # Proctors can only view results for their assigned categories
-    if role == 'proctor':
+    if has_role(role, 'proctor') and not has_role(role, 'admin'):
         available_tests = get_proctor_tests(session.get('user'))
         if result['test_id'] not in available_tests:
             return "Unauthorized", 403
 
     # Check if examiner can approve references (non-passing tests only)
-    can_approve = role in ['proctor', 'admin'] and not result.get('passed', True)
+    can_approve = (has_role(role, 'proctor') or has_role(role, 'admin')) and not result.get('passed', True)
 
     return render_template('results.html', result=result, result_id=result_id,
                          can_approve=can_approve, role=role)
@@ -657,8 +804,8 @@ def approve_reference(result_id):
         return jsonify({'error': 'Can only approve references on non-passing tests'}), 400
 
     # Check proctor has access to this test
-    role = session.get('role')
-    if role == 'proctor':
+    role = session.get('role', '')
+    if has_role(role, 'proctor') and not has_role(role, 'admin'):
         available_tests = get_proctor_tests(session.get('user'))
         if result['test_id'] not in available_tests:
             return jsonify({'error': 'Unauthorized'}), 403
@@ -718,7 +865,7 @@ def proctor_dashboard():
 
     # Get all students
     all_users = get_all_users()
-    students = {u: data for u, data in all_users.items() if data['role'] == 'student'}
+    students = {u: data for u, data in all_users.items() if has_role(data, 'student')}
 
     # Add test status to each student
     all_results = get_all_test_results()
@@ -746,7 +893,7 @@ def proctor_dashboard():
                          tests=available_tests,
                          students=students,
                          categories=category_names,
-                         is_admin=(session.get('role') == 'admin'))
+                         is_admin=has_role(session.get('role', ''), 'admin'))
 
 
 @app.route('/answer-key/<test_id>')
@@ -884,7 +1031,8 @@ def add_student():
 @login_required
 def change_password():
     """Allow proctors and admins to change their own password."""
-    if session.get('role') not in ['proctor', 'admin']:
+    role = session.get('role', '')
+    if not (has_role(role, 'proctor') or has_role(role, 'admin')):
         return jsonify({'error': 'Unauthorized'}), 403
 
     data = request.json
@@ -921,9 +1069,9 @@ def change_password():
 def admin_dashboard():
     # Get all proctors, students, and JWG members
     all_users = get_all_users()
-    proctors = {u: data for u, data in all_users.items() if data['role'] == 'proctor'}
-    students = {u: data for u, data in all_users.items() if data['role'] == 'student'}
-    jwg_members = {u: data for u, data in all_users.items() if data['role'] == 'jwg'}
+    proctors = {u: data for u, data in all_users.items() if has_role(data, 'proctor')}
+    students = {u: data for u, data in all_users.items() if has_role(data, 'student')}
+    jwg_members = {u: data for u, data in all_users.items() if has_role(data, 'jwg')}
     all_results = get_all_test_results()
     all_tests = get_all_tests()
 
@@ -977,7 +1125,7 @@ def admin_dashboard():
     # Check if any examiners need category migration
     needs_migration = False
     for username, user_data in all_users.items():
-        if user_data['role'] != 'proctor':
+        if not has_role(user_data, 'proctor'):
             continue
         categories = user_data.get('categories', {})
         if isinstance(categories, list):
@@ -1015,9 +1163,6 @@ def add_proctor():
     if not username or not name:
         return jsonify({'error': 'Username and name are required'}), 400
 
-    if get_user(username):
-        return jsonify({'error': 'Username already exists'}), 400
-
     # Validate categories - format: {cat_id: {"level": "...", "expiration": "..."}}
     valid_categories = {}
     if isinstance(categories, dict):
@@ -1029,6 +1174,20 @@ def add_proctor():
                         'level': level,
                         'expiration': cat_data.get('expiration', '')
                     }
+
+    existing = get_user(username)
+    if existing:
+        existing_cats = existing.get('categories', {})
+        if isinstance(existing_cats, dict):
+            existing_cats.update(valid_categories)
+        else:
+            existing_cats = valid_categories
+        existing['role'] = add_role(existing['role'], 'proctor')
+        existing['name'] = name
+        existing['categories'] = existing_cats
+        save_user(username, existing)
+        cat_count = len(valid_categories)
+        return jsonify({'success': True, 'message': f'Existing user {name} updated with examiner role and {cat_count} category rating(s)'})
 
     save_user(username, {
         'password': 'password',
@@ -1045,7 +1204,7 @@ def add_proctor():
 @admin_required
 def update_proctor(username):
     user = get_user(username)
-    if not user or user['role'] != 'proctor':
+    if not user or not has_role(user, 'proctor'):
         return jsonify({'error': 'Examiner not found'}), 404
 
     data = request.json
@@ -1080,10 +1239,16 @@ def update_proctor(username):
 @admin_required
 def delete_proctor(username):
     user = get_user(username)
-    if not user or user['role'] != 'proctor':
+    if not user or not has_role(user, 'proctor'):
         return jsonify({'error': 'Proctor not found'}), 404
 
-    delete_user(username)
+    new_role = remove_role(user['role'], 'proctor')
+    if new_role:
+        user['role'] = new_role
+        user['categories'] = {}
+        save_user(username, user)
+    else:
+        delete_user(username)
     return jsonify({'success': True, 'message': 'Proctor deleted'})
 
 
@@ -1099,8 +1264,13 @@ def admin_add_student():
     if not username or not password or not name:
         return jsonify({'error': 'All fields required'}), 400
 
-    if get_user(username):
-        return jsonify({'error': 'Username already exists'}), 400
+    existing = get_user(username)
+    if existing:
+        existing['role'] = add_role(existing['role'], 'student')
+        existing['name'] = name
+        existing['assigned_tests'] = assigned_tests
+        save_user(username, existing)
+        return jsonify({'success': True, 'message': f'Existing user {name} updated with candidate role and {len(assigned_tests)} test(s)'})
 
     save_user(username, {
         'password': password,
@@ -1117,10 +1287,16 @@ def admin_add_student():
 @admin_required
 def admin_delete_student(username):
     user = get_user(username)
-    if not user or user['role'] != 'student':
+    if not user or not has_role(user, 'student'):
         return jsonify({'error': 'Student not found'}), 404
 
-    delete_user(username)
+    new_role = remove_role(user['role'], 'student')
+    if new_role:
+        user['role'] = new_role
+        user['assigned_tests'] = []
+        save_user(username, user)
+    else:
+        delete_user(username)
     return jsonify({'success': True, 'message': 'Student deleted'})
 
 
@@ -1128,7 +1304,7 @@ def admin_delete_student(username):
 @admin_required
 def get_proctor_route(username):
     user = get_user(username)
-    if not user or user['role'] != 'proctor':
+    if not user or not has_role(user, 'proctor'):
         return jsonify({'error': 'Examiner not found'}), 404
 
     return jsonify({
@@ -1170,7 +1346,7 @@ def migrate_categories():
     migrated = 0
 
     for username, user_data in all_users.items():
-        if user_data['role'] != 'proctor':
+        if not has_role(user_data, 'proctor'):
             continue
 
         categories = user_data.get('categories', {})
@@ -1330,31 +1506,48 @@ def jwg_update_question():
     test = all_tests[test_id]
     questions = test.get('questions', [])
 
-    # Find and update the question
-    updated = False
+    # Find the question and compute diff
+    target_q = None
     for q in questions:
         if q['id'] == question_id:
-            if new_question:
-                q['question'] = new_question
-            if new_reference:
-                q['correct_section'] = new_reference
-            if new_correct is not None:
-                q['correct'] = new_correct
-            if new_options and len(new_options) == 4:
-                q['options'] = new_options
-            updated = True
+            target_q = q
             break
 
-    if not updated:
+    if not target_q:
         return jsonify({'error': 'Question not found'}), 404
+
+    # Compute changes (old vs new)
+    changes = {}
+    if new_question and new_question != target_q.get('question'):
+        changes['question'] = {'old': target_q['question'], 'new': new_question}
+        target_q['question'] = new_question
+    if new_reference and new_reference != target_q.get('correct_section'):
+        changes['correct_section'] = {'old': target_q.get('correct_section', ''), 'new': new_reference}
+        target_q['correct_section'] = new_reference
+    if new_correct is not None and new_correct != target_q.get('correct'):
+        changes['correct'] = {'old': target_q['correct'], 'new': new_correct}
+        target_q['correct'] = new_correct
+    if new_options and len(new_options) == 4 and new_options != target_q.get('options'):
+        old_options = target_q.get('options', [])
+        option_changes = {}
+        for i, (old_opt, new_opt) in enumerate(zip(old_options, new_options)):
+            if old_opt != new_opt:
+                option_changes[str(i)] = {'old': old_opt, 'new': new_opt}
+        if option_changes:
+            changes['options'] = option_changes
+        target_q['options'] = new_options
+
+    if not changes:
+        return jsonify({'success': True, 'message': 'No changes detected'})
 
     # Save the updated test
     test['questions'] = questions
     save_test(test_id, test)
 
-    # Log the change
+    # Record the change for audit trail
     username = session.get('user')
     name = session.get('name')
+    save_question_change(test_id, question_id, username, name, changes)
     print(f"JWG Update: {name} ({username}) updated question {question_id} in {test_id}")
 
     return jsonify({
@@ -1362,6 +1555,20 @@ def jwg_update_question():
         'message': 'Question updated successfully',
         'updated_by': name
     })
+
+
+@app.route('/jwg/question-history')
+@jwg_required
+def jwg_question_history():
+    """API endpoint to get change history for a question."""
+    test_id = request.args.get('test_id')
+    question_id = request.args.get('question_id', type=int)
+
+    if not test_id or question_id is None:
+        return jsonify({'error': 'test_id and question_id are required'}), 400
+
+    changes = get_question_changes(test_id, question_id)
+    return jsonify({'success': True, 'changes': changes})
 
 
 @app.route('/admin/add-jwg', methods=['POST'])
@@ -1376,17 +1583,29 @@ def admin_add_jwg():
     if not username or not name:
         return jsonify({'error': 'Username and name are required'}), 400
 
-    if get_user(username):
-        return jsonify({'error': 'Username already exists'}), 400
+    existing = get_user(username)
+    if existing:
+        existing['role'] = add_role(existing['role'], 'jwg')
+        existing['name'] = name
+        save_user(username, existing)
+        password = existing['password']
+        message = f'Existing user {name} updated with JWG role'
+    else:
+        save_user(username, {
+            'password': password,
+            'role': 'jwg',
+            'name': name,
+            'categories': []
+        })
+        message = f'JWG member {name} added'
+    if data.get('send_email'):
+        success, email_msg = send_login_email(username, name, username, password, 'JWG member')
+        if success:
+            message += ' and login email sent'
+        else:
+            message += f'. Email failed: {email_msg}'
 
-    save_user(username, {
-        'password': password,
-        'role': 'jwg',
-        'name': name,
-        'categories': []
-    })
-
-    return jsonify({'success': True, 'message': f'JWG member {name} added'})
+    return jsonify({'success': True, 'message': message})
 
 
 @app.route('/admin/delete-jwg/<username>', methods=['POST'])
@@ -1394,11 +1613,33 @@ def admin_add_jwg():
 def admin_delete_jwg(username):
     """Delete a JWG member."""
     user = get_user(username)
-    if not user or user['role'] != 'jwg':
+    if not user or not has_role(user, 'jwg'):
         return jsonify({'error': 'JWG member not found'}), 404
 
-    delete_user(username)
+    new_role = remove_role(user['role'], 'jwg')
+    if new_role:
+        user['role'] = new_role
+        save_user(username, user)
+    else:
+        delete_user(username)
     return jsonify({'success': True, 'message': 'JWG member deleted'})
+
+
+@app.route('/admin/resend-email', methods=['POST'])
+@admin_required
+def resend_email():
+    """Resend login email to a user."""
+    data = request.json
+    username = data.get('username', '')
+    user = get_user(username)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    success, msg = send_login_email(username, user['name'], username, user['password'])
+    if success:
+        return jsonify({'success': True, 'message': f'Login email sent to {username}'})
+    else:
+        return jsonify({'error': f'Email failed: {msg}'}), 500
 
 
 if __name__ == '__main__':
