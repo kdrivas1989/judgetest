@@ -85,8 +85,9 @@ PROCTOR_LEVELS = ['regional', 'national', 'examiner']
 USER_ROLES = ['student', 'proctor', 'jwg', 'admin']
 
 # Email configuration
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
-EMAIL_FROM = os.environ.get('EMAIL_FROM', 'USPA Judge Test <noreply@kd-evolution.com>')
+BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
+EMAIL_FROM_NAME = os.environ.get('EMAIL_FROM_NAME', 'USPA Judge Test')
+EMAIL_FROM_ADDR = os.environ.get('EMAIL_FROM_ADDR', 'kevin@kd-evolution.com')
 # Legacy SMTP config (fallback for local dev)
 SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
 SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))
@@ -115,31 +116,32 @@ We recommend changing your password after your first login.
 - USPA Judge Test Admin
 """
 
-    # Try Resend HTTP API first (works on Railway)
-    if RESEND_API_KEY:
+    # Try Brevo HTTP API first (works on Railway, 300 emails/day free)
+    if BREVO_API_KEY:
         try:
             payload = json.dumps({
-                'from': EMAIL_FROM,
-                'to': [to_email],
+                'sender': {'name': EMAIL_FROM_NAME, 'email': EMAIL_FROM_ADDR},
+                'to': [{'email': to_email, 'name': name}],
                 'subject': 'USPA Judge Test - Your Login Information',
-                'text': body_text
+                'textContent': body_text
             }).encode('utf-8')
             req = urllib.request.Request(
-                'https://api.resend.com/emails',
+                'https://api.brevo.com/v3/smtp/email',
                 data=payload,
                 headers={
-                    'Authorization': f'Bearer {RESEND_API_KEY}',
-                    'Content-Type': 'application/json'
+                    'api-key': BREVO_API_KEY,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
                 }
             )
             resp = urllib.request.urlopen(req, timeout=10)
-            return True, 'Email sent successfully (Resend)'
+            return True, 'Email sent successfully (Brevo)'
         except Exception as e:
-            return False, f'Resend failed: {e}'
+            return False, f'Brevo failed: {e}'
 
     # Fallback to SMTP for local development
     if not SMTP_USERNAME or not SMTP_PASSWORD:
-        return False, 'Email not configured. Set RESEND_API_KEY or SMTP credentials.'
+        return False, 'Email not configured. Set BREVO_API_KEY or SMTP credentials.'
 
     msg = MIMEMultipart()
     msg['From'] = SMTP_FROM_EMAIL
