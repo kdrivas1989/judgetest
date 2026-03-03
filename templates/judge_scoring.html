@@ -173,14 +173,36 @@
     }
 
     function selectPosition(num) {
+        const btn = document.querySelector(`.judge-pos-btn[data-pos="${num}"]`);
+        if (btn && btn.disabled) return;
         myJudgeNum = num;
-        document.querySelectorAll('.judge-pos-btn').forEach(btn => {
-            const pos = parseInt(btn.dataset.pos);
-            btn.className = pos === num
+        document.querySelectorAll('.judge-pos-btn').forEach(b => {
+            const pos = parseInt(b.dataset.pos);
+            if (b.disabled) return;
+            b.className = pos === num
                 ? 'judge-pos-btn px-3 py-2 border-2 border-blue-500 bg-blue-50 text-blue-700 rounded-lg text-center font-medium'
                 : 'judge-pos-btn px-3 py-2 border-2 border-gray-300 rounded-lg text-center font-medium hover:border-blue-400';
         });
     }
+
+    // Fetch room status and disable occupied positions
+    fetch(`/scoring/${ROOM_CODE}/status`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.judges) {
+                for (const [jNum, judge] of Object.entries(data.judges)) {
+                    if (judge.connected) {
+                        const btn = document.querySelector(`.judge-pos-btn[data-pos="${jNum}"]`);
+                        if (btn) {
+                            btn.disabled = true;
+                            btn.textContent = `J${jNum} - ${judge.name}`;
+                            btn.className = 'judge-pos-btn px-3 py-2 border-2 border-gray-200 bg-gray-100 text-gray-400 rounded-lg text-center font-medium cursor-not-allowed';
+                        }
+                    }
+                }
+            }
+        })
+        .catch(() => {});
 
     function joinRoom() {
         myName = document.getElementById('judgeName').value.trim();

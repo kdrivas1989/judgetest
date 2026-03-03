@@ -2164,6 +2164,22 @@ def _ensure_permanent_rooms():
 _ensure_permanent_rooms()
 
 
+def _reset_all_connected_flags():
+    """On startup, mark all judges as disconnected (no sockets survive a restart)."""
+    all_rooms = _get_all_ws_rooms()
+    for code, room in all_rooms.items():
+        changed = False
+        for judge_num, judge in room.get('judges', {}).items():
+            if judge.get('connected'):
+                judge['connected'] = False
+                changed = True
+        if changed:
+            _set_ws_room(code, room)
+
+
+_reset_all_connected_flags()
+
+
 # --- Helper ---
 
 def _ws_scoring_completion(room):
