@@ -201,6 +201,12 @@ def init_db():
         )
     ''')
 
+    # Add last_login column if not exists
+    cursor.execute("PRAGMA table_info(users)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'last_login' not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN last_login TEXT DEFAULT ''")
+
     # Create test_results table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS test_results (
@@ -337,7 +343,8 @@ def get_user(username):
             'categories': json.loads(row['categories']),
             'assigned_tests': json.loads(row['assigned_tests']) if row['assigned_tests'] else [],
             'proctor_level': row['proctor_level'] or 'regional',
-            'expiration_date': row['expiration_date'] or ''
+            'expiration_date': row['expiration_date'] or '',
+            'last_login': row['last_login'] or ''
         }
     return None
 
@@ -355,7 +362,8 @@ def get_all_users():
             'categories': json.loads(row['categories']),
             'assigned_tests': json.loads(row['assigned_tests']) if row['assigned_tests'] else [],
             'proctor_level': row['proctor_level'] or 'regional',
-            'expiration_date': row['expiration_date'] or ''
+            'expiration_date': row['expiration_date'] or '',
+            'last_login': row['last_login'] or ''
         }
     return users
 
@@ -366,11 +374,12 @@ def save_user(username, user_data):
     assigned_tests = json.dumps(user_data.get('assigned_tests', []))
     proctor_level = user_data.get('proctor_level', 'regional')
     expiration_date = user_data.get('expiration_date', '') or ''
+    last_login = user_data.get('last_login', '') or ''
     db = get_sqlite_db()
     db.execute('''
-        INSERT OR REPLACE INTO users (username, password, role, name, categories, assigned_tests, proctor_level, expiration_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (username, user_data['password'], user_data['role'], user_data['name'], categories, assigned_tests, proctor_level, expiration_date))
+        INSERT OR REPLACE INTO users (username, password, role, name, categories, assigned_tests, proctor_level, expiration_date, last_login)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (username, user_data['password'], user_data['role'], user_data['name'], categories, assigned_tests, proctor_level, expiration_date, last_login))
     db.commit()
 
 
@@ -756,6 +765,11 @@ def login():
             session['user'] = username
             session['role'] = user['role']
             session['name'] = user['name']
+            # Record last login
+            db = get_sqlite_db()
+            db.execute('UPDATE users SET last_login = ? WHERE username = ?',
+                       (datetime.now().isoformat(), username))
+            db.commit()
             return redirect(url_for('index'))
         else:
             error = 'Invalid username or password'

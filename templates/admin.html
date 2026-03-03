@@ -345,10 +345,15 @@
                         {% for username, user_data in jwg_members.items() %}
                             <div class="border border-blue-200 rounded-lg p-3 hover:bg-blue-50" data-username="{{ username }}">
                                 <div class="flex justify-between items-center">
-                                    <div class="flex items-center gap-2">
+                                    <div class="flex items-center gap-2 flex-wrap">
                                         <span class="font-semibold text-gray-800">{{ user_data.name }}</span>
                                         <span class="text-sm text-gray-500">@{{ username }}</span>
                                         <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">JWG</span>
+                                        {% if user_data.last_login %}
+                                        <span class="text-xs text-gray-400" title="{{ user_data.last_login }}">Last login: {{ user_data.last_login[:10] }}</span>
+                                        {% else %}
+                                        <span class="text-xs text-red-400">Never logged in</span>
+                                        {% endif %}
                                     </div>
                                     <div class="flex gap-2 ml-2">
                                         <button onclick="resendEmail('{{ username }}', '{{ user_data.name }}')"
