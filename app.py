@@ -289,6 +289,7 @@ def init_db():
         ('ironeddie42@gmail.com', 'Steve Hubbard'),
         ('sudeepkodavati@gmail.com', 'Sudeep Kodavati'),
         ('bryce@robotlords.com', 'Bryce Witcher'),
+        ('aowens@uspa.org', 'Amanda Owens'),
         ('kdrivas1989@gmail.com', 'Kevin Drivas'),
     ]
     for email, name in jwg_members:
