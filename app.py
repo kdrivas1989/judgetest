@@ -85,25 +85,22 @@ PROCTOR_LEVELS = ['regional', 'national', 'examiner']
 USER_ROLES = ['student', 'proctor', 'jwg', 'admin']
 
 # Email configuration
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+EMAIL_FROM = os.environ.get('EMAIL_FROM', 'USPA Judge Test <noreply@kd-evolution.com>')
+# Legacy SMTP config (fallback for local dev)
 SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
 SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))
 SMTP_USERNAME = os.environ.get('SMTP_USERNAME', '')
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
 SMTP_FROM_EMAIL = os.environ.get('SMTP_FROM_EMAIL', SMTP_USERNAME)
 
+import urllib.request
+
 
 def send_login_email(to_email, name, username, password, role='member'):
     """Send login credentials via email."""
-    if not SMTP_USERNAME or not SMTP_PASSWORD:
-        return False, 'Email not configured. Set SMTP_USERNAME and SMTP_PASSWORD environment variables.'
-
-    msg = MIMEMultipart()
-    msg['From'] = SMTP_FROM_EMAIL
-    msg['To'] = to_email
-    msg['Subject'] = 'USPA Judge Test - Your Login Information'
-
     site_url = os.environ.get('SITE_URL', 'http://localhost:5000')
-    body = f"""Hello {name},
+    body_text = f"""Hello {name},
 
 You have been added to the USPA Judge Test system.
 
@@ -117,9 +114,39 @@ We recommend changing your password after your first login.
 
 - USPA Judge Test Admin
 """
-    msg.attach(MIMEText(body, 'plain'))
 
-    # Try SSL on port 465 first (works on Railway), then STARTTLS on 587
+    # Try Resend HTTP API first (works on Railway)
+    if RESEND_API_KEY:
+        try:
+            payload = json.dumps({
+                'from': EMAIL_FROM,
+                'to': [to_email],
+                'subject': 'USPA Judge Test - Your Login Information',
+                'text': body_text
+            }).encode('utf-8')
+            req = urllib.request.Request(
+                'https://api.resend.com/emails',
+                data=payload,
+                headers={
+                    'Authorization': f'Bearer {RESEND_API_KEY}',
+                    'Content-Type': 'application/json'
+                }
+            )
+            resp = urllib.request.urlopen(req, timeout=10)
+            return True, 'Email sent successfully (Resend)'
+        except Exception as e:
+            return False, f'Resend failed: {e}'
+
+    # Fallback to SMTP for local development
+    if not SMTP_USERNAME or not SMTP_PASSWORD:
+        return False, 'Email not configured. Set RESEND_API_KEY or SMTP credentials.'
+
+    msg = MIMEMultipart()
+    msg['From'] = SMTP_FROM_EMAIL
+    msg['To'] = to_email
+    msg['Subject'] = 'USPA Judge Test - Your Login Information'
+    msg.attach(MIMEText(body_text, 'plain'))
+
     for method in ['ssl', 'starttls']:
         try:
             if method == 'ssl':
