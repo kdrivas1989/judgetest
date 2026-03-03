@@ -241,9 +241,14 @@
         socket = io({ transports: ['websocket', 'polling'] });
 
         socket.on('connect', () => {
-            document.getElementById('connectionStatus').textContent = 'Connected';
+            const transport = socket.io.engine.transport.name;
+            document.getElementById('connectionStatus').textContent = 'Connected (' + transport + ')';
             document.getElementById('connectionStatus').className = 'text-xs px-2 py-1 rounded bg-green-500';
             document.getElementById('connectingBanner').classList.add('hidden');
+            // Update when transport upgrades (polling → websocket)
+            socket.io.engine.on('upgrade', (t) => {
+                document.getElementById('connectionStatus').textContent = 'Connected (' + t.name + ')';
+            });
 
             if (myRole === 'event_judge') {
                 socket.emit('ws_scoring_event_judge_join', { room_code: ROOM_CODE });
