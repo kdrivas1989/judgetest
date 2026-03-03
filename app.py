@@ -2366,10 +2366,18 @@ if SOCKETIO_ENABLED:
                 emit('ws_scoring_error', {'message': f'J{judge_num} position already taken by {existing_name}'})
                 return
 
+        # Preserve confirmed state on reconnect
+        was_confirmed = False
+        if judge_num in room.get('judges', {}):
+            prev = room['judges'][judge_num]
+            if prev.get('name') == judge_name or prev.get('sid') == request.sid:
+                was_confirmed = prev.get('confirmed', False)
+
         room.setdefault('judges', {})[judge_num] = {
             'name': judge_name,
             'connected': True,
             'sid': request.sid,
+            'confirmed': was_confirmed,
         }
         join_room(room_code)
         _set_ws_room(room_code, room)
@@ -2388,7 +2396,7 @@ if SOCKETIO_ENABLED:
         })
 
         emit('ws_scoring_room_update', {
-            'judges': {str(k): {'name': v['name'], 'connected': v.get('connected', False)}
+            'judges': {str(k): {'name': v['name'], 'connected': v.get('connected', False), 'confirmed': v.get('confirmed', False)}
                        for k, v in room['judges'].items()},
             'state': room['state'],
             'scores': {str(k): v for k, v in room.get('scores', {}).items()},
@@ -2408,7 +2416,7 @@ if SOCKETIO_ENABLED:
         join_room(room_code)
 
         emit('ws_scoring_room_update', {
-            'judges': {str(k): {'name': v['name'], 'connected': v.get('connected', False)}
+            'judges': {str(k): {'name': v['name'], 'connected': v.get('connected', False), 'confirmed': v.get('confirmed', False)}
                        for k, v in room.get('judges', {}).items()},
             'state': room['state'],
             'scores': {str(k): v for k, v in room.get('scores', {}).items()},
@@ -2436,7 +2444,8 @@ if SOCKETIO_ENABLED:
             emit('ws_scoring_error', {'message': 'Invalid scoring type'})
             return
 
-        panel_size = PANEL_SIZES.get(new_type, 5)
+        new_panel = PANEL_SIZES.get(new_type, 5)
+        panel_size = max(room.get('panel_size', new_panel), new_panel)
         room['scoring_type'] = new_type
         room['panel_size'] = panel_size
         room['scores'] = {j: {} for j in range(1, panel_size + 1)}
@@ -2502,6 +2511,108 @@ if SOCKETIO_ENABLED:
             'completion': completion,
         }, room=room_code)
 
+    @socketio.on('ws_scoring_confirm')
+    def on_ws_scoring_confirm(data):
+        """Judge confirms all their scores at once."""
+        room_code = data.get('room_code')
+        judge_num = int(data.get('judge_num', 0))
+        scores = data.get('scores', {})
+
+        room = _get_ws_room(room_code)
+        if not room:
+            emit('ws_scoring_error', {'message': 'Room not found'})
+            return
+
+        if room['state'] != 'scoring':
+            emit('ws_scoring_error', {'message': 'Cannot confirm - scoring not active'})
+            return
+
+        panel_size = room.get('panel_size', 3)
+        if judge_num < 1 or judge_num > panel_size:
+            emit('ws_scoring_error', {'message': 'Invalid judge position'})
+            return
+
+        if judge_num not in room.get('judges', {}):
+            emit('ws_scoring_error', {'message': 'Judge not found in room'})
+            return
+
+        # Validate all required fields
+        valid_fields = WS_SCORE_FIELDS.get(room['scoring_type'], {})
+        validated_scores = {}
+        for field, (min_val, max_val) in valid_fields.items():
+            val = scores.get(field)
+            if val is None or val == '':
+                emit('ws_scoring_error', {'message': f'Missing field: {field}'})
+                return
+            try:
+                val = float(val)
+            except (ValueError, TypeError):
+                emit('ws_scoring_error', {'message': f'Invalid value for {field}'})
+                return
+            if val < min_val or val > max_val:
+                emit('ws_scoring_error', {'message': f'{field} must be between {min_val} and {max_val}'})
+                return
+            validated_scores[field] = val
+
+        # Store scores and mark confirmed
+        room['scores'][judge_num] = validated_scores
+        room['judges'][judge_num]['confirmed'] = True
+        _set_ws_room(room_code, room)
+
+        # Check if all connected judges confirmed
+        all_confirmed = all(
+            room['judges'][j].get('confirmed', False)
+            for j in range(1, panel_size + 1)
+            if j in room['judges'] and room['judges'][j].get('connected', False)
+        )
+
+        emit('ws_scoring_score_confirmed', {
+            'judge_num': judge_num,
+            'judge_name': room['judges'][judge_num]['name'],
+            'scores': validated_scores,
+            'all_scores': {str(k): v for k, v in room['scores'].items()},
+            'all_confirmed': all_confirmed,
+            'confirmed_judges': {str(j): room['judges'][j].get('confirmed', False) for j in room['judges']},
+        }, room=room_code)
+
+    @socketio.on('ws_scoring_finalize')
+    def on_ws_scoring_finalize(data):
+        """Event judge finalizes scores - shows overlay then resets for next video."""
+        room_code = data.get('room_code')
+
+        room = _get_ws_room(room_code)
+        if not room:
+            emit('ws_scoring_error', {'message': 'Room not found'})
+            return
+
+        panel_size = room.get('panel_size', 3)
+
+        # Validate all connected judges confirmed
+        for j in range(1, panel_size + 1):
+            if j in room.get('judges', {}) and room['judges'][j].get('connected', False):
+                if not room['judges'][j].get('confirmed', False):
+                    emit('ws_scoring_error', {'message': f'J{j} has not confirmed their score'})
+                    return
+
+        # Snapshot current scores + judges for overlay
+        final_scores = {str(k): dict(v) for k, v in room['scores'].items()}
+        final_judges = {str(j): {'name': info.get('name', '?')} for j, info in room['judges'].items()}
+
+        # Reset room for next video (preserve panel_size and judges)
+        room['scores'] = {j: {} for j in range(1, panel_size + 1)}
+        room['state'] = 'scoring'
+        for j in room['judges']:
+            room['judges'][j]['confirmed'] = False
+        room.pop('video', None)
+        room.pop('video_url', None)
+        _set_ws_room(room_code, room)
+
+        emit('ws_scoring_finalized', {
+            'scores': final_scores,
+            'judges': final_judges,
+            'scoring_type': room['scoring_type'],
+        }, room=room_code)
+
     @socketio.on('ws_scoring_lock')
     def on_ws_scoring_lock(data):
         """Event judge locks scores."""
@@ -2545,6 +2656,8 @@ if SOCKETIO_ENABLED:
         panel_size = room.get('panel_size', 3)
         room['scores'] = {j: {} for j in range(1, panel_size + 1)}
         room['state'] = 'scoring'
+        for j in room.get('judges', {}):
+            room['judges'][j]['confirmed'] = False
         _set_ws_room(room_code, room)
 
         emit('ws_scoring_reset_all', {
