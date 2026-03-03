@@ -120,13 +120,26 @@ We recommend changing your password after your first login.
     msg.attach(MIMEText(body, 'plain'))
 
     try:
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()
+        if SMTP_PORT == 465:
+            server = smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT)
+        else:
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
         server.login(SMTP_USERNAME, SMTP_PASSWORD)
         server.sendmail(SMTP_FROM_EMAIL, to_email, msg.as_string())
         server.quit()
         return True, 'Email sent successfully'
     except Exception as e:
+        # Fallback: try SSL on port 465 if STARTTLS on 587 fails
+        if SMTP_PORT != 465:
+            try:
+                server = smtplib.SMTP_SSL(SMTP_SERVER, 465)
+                server.login(SMTP_USERNAME, SMTP_PASSWORD)
+                server.sendmail(SMTP_FROM_EMAIL, to_email, msg.as_string())
+                server.quit()
+                return True, 'Email sent successfully (via SSL fallback)'
+            except Exception as e2:
+                return False, f'STARTTLS failed: {e}; SSL fallback failed: {e2}'
         return False, str(e)
 
 
