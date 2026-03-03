@@ -197,6 +197,9 @@
             document.getElementById('myJudgeLabel').textContent = '(J' + myJudgeNum + ')';
         }
 
+        // Show video immediately from server-rendered data (before socket connects)
+        if (INITIAL_VIDEO) setupVideo(INITIAL_VIDEO);
+
         connectSocket();
     }
 
@@ -483,6 +486,9 @@
         banner.classList.remove('hidden');
         setTimeout(() => banner.classList.add('hidden'), 5000);
     }
+
+    // --- Initial video from server-side render ---
+    const INITIAL_VIDEO = {{ video | tojson }};
 
     // --- Cleanup ---
     window.addEventListener('beforeunload', () => {
