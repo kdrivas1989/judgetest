@@ -31,8 +31,9 @@
 
         <!-- Progress Bar -->
         {% set verified_count = questions|selectattr('verified')|list|length %}
+        {% set flagged_count = questions|selectattr('flagged')|list|length %}
         {% set total_count = questions|length %}
-        {% set pending_count = total_count - verified_count %}
+        {% set pending_count = total_count - verified_count - flagged_count %}
         {% set percent = ((verified_count / total_count) * 100)|round(1) if total_count > 0 else 0 %}
         <div class="bg-white rounded-lg shadow p-4 mb-6">
             <div class="flex justify-between items-center mb-2">
@@ -58,6 +59,10 @@
                     <span class="text-sm text-gray-600">Verified</span>
                 </span>
                 <span class="flex items-center gap-2">
+                    <span class="inline-block w-4 h-4 bg-red-400 rounded"></span>
+                    <span class="text-sm text-gray-600">Flagged</span>
+                </span>
+                <span class="flex items-center gap-2">
                     <span class="inline-block w-4 h-4 bg-orange-400 rounded"></span>
                     <span class="text-sm text-gray-600">Pending</span>
                 </span>
@@ -69,7 +74,8 @@
             {% for q in questions %}
             <div id="question-{{ q.id }}"
                  data-verified="{{ 'true' if q.verified else 'false' }}"
-                 class="question-card bg-white rounded-lg shadow p-4 {% if q.verified %}border-l-4 border-green-500 verified-card{% else %}border-l-4 border-orange-400 pending-card{% endif %}">
+                 data-flagged="{{ 'true' if q.flagged else 'false' }}"
+                 class="question-card bg-white rounded-lg shadow p-4 {% if q.verified %}border-l-4 border-green-500 verified-card{% elif q.flagged %}border-l-4 border-red-400 flagged-card{% else %}border-l-4 border-orange-400 pending-card{% endif %}">
                 <div class="flex justify-between items-start gap-4">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2 flex-wrap">
@@ -262,12 +268,13 @@
 
             cards.forEach(card => {
                 const isVerified = card.dataset.verified === 'true';
-                if (showOnlyPending && isVerified) {
+                const isFlagged = card.dataset.flagged === 'true';
+                if (showOnlyPending && (isVerified || isFlagged)) {
                     card.classList.add('hidden');
                 } else {
                     card.classList.remove('hidden');
                     visibleCount++;
-                    if (!isVerified) visiblePending++;
+                    if (!isVerified && !isFlagged) visiblePending++;
                 }
             });
 
@@ -279,7 +286,15 @@
                 allVerifiedMsg.classList.add('hidden');
             }
 
-            document.getElementById('pendingCount').textContent = totalCount - verifiedCount;
+            document.getElementById('pendingCount').textContent = countPending();
+        }
+
+        function countPending() {
+            let count = 0;
+            document.querySelectorAll('.question-card').forEach(card => {
+                if (card.dataset.verified !== 'true' && card.dataset.flagged !== 'true') count++;
+            });
+            return count;
         }
 
         // Initial filter
@@ -364,7 +379,10 @@
                 const result = await response.json();
 
                 if (result.success) {
+                    const card = document.getElementById(`question-${questionId}`);
                     if (action === 'flag') {
+                        card.dataset.flagged = 'true';
+                        card.className = 'question-card bg-white rounded-lg shadow p-4 border-l-4 border-red-400 flagged-card';
                         flagBtn.className = 'text-red-600 hover:text-red-800 text-sm';
                         flagBtn.title = 'Unflag this question';
                         flagBtn.onclick = () => toggleFlag(testId, questionId, true);
@@ -379,6 +397,8 @@
                             Flagged by: ${result.flagged_by} — Needs replacement
                         </span>`;
                     } else {
+                        card.dataset.flagged = 'false';
+                        card.className = 'question-card bg-white rounded-lg shadow p-4 border-l-4 border-orange-400 pending-card';
                         flagBtn.className = 'text-gray-400 hover:text-red-600 text-sm';
                         flagBtn.title = 'Flag as not a good question';
                         flagBtn.onclick = () => toggleFlag(testId, questionId, false);
@@ -388,6 +408,9 @@
                         flagStatus.classList.add('hidden');
                         flagStatus.innerHTML = '';
                     }
+                    // Update pending count and re-filter
+                    document.getElementById('pendingCount').textContent = countPending();
+                    filterQuestions();
                 } else {
                     alert('Error: ' + result.error);
                 }
