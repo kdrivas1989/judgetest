@@ -1574,6 +1574,21 @@ def jwg_verify_test(test_id):
         else:
             q['flagged'] = False
 
+    # Sort questions by SCM reference (e.g., "8.1.3.1" before "8.1.5.3")
+    def section_sort_key(q):
+        ref = q.get('correct_section', '')
+        ref = re.sub(r'[–—−]', '-', ref)
+        parts = re.split(r'[.\-\s]+', ref.strip())
+        result = []
+        for p in parts:
+            try:
+                result.append(int(p))
+            except ValueError:
+                result.append(p)
+        return result
+
+    questions.sort(key=section_sort_key)
+
     return render_template('jwg_verify.html',
                          test_id=test_id,
                          test_name=test['name'],
