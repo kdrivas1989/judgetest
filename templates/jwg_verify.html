@@ -75,7 +75,7 @@
                         <div class="flex items-center gap-2 mb-2 flex-wrap">
                             <span class="bg-gray-100 text-gray-700 text-sm px-2 py-1 rounded font-mono">Q{{ q.id }}</span>
                             <span id="ref-display-{{ q.id }}" class="bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded font-mono">{{ q.correct_section }}</span>
-                            <button onclick="openEditModal({{ q.id }}, '{{ q.question|e }}', '{{ q.correct_section }}', {{ q.correct }}, {{ q.options|tojson|e }})"
+                            <button onclick="openEditModal({{ q.id }}, {{ q.question|tojson|e }}, {{ q.correct_section|tojson|e }}, {{ q.correct }}, {{ q.options|tojson|e }})"
                                 class="text-gray-400 hover:text-blue-600 text-sm">
                                 <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
@@ -458,6 +458,12 @@
                             ${labels[i]}. ${opt}
                         </div>
                     `).join('');
+
+                    // Update the edit button's onclick so re-editing shows current values
+                    const editBtn = document.querySelector(`#question-${questionId} button[onclick^="openEditModal"]`);
+                    if (editBtn) {
+                        editBtn.onclick = () => openEditModal(questionId, question, correct_section, correct, options);
+                    }
 
                     setTimeout(() => {
                         closeEditModal();
