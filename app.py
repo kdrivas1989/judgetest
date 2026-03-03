@@ -1893,6 +1893,714 @@ def resend_email():
         return jsonify({'error': f'Email failed: {msg}'}), 500
 
 
+# ==================== REAL-TIME SCORING SYSTEM ====================
+
+import random
+import string
+import sys
+
+# --- Constants ---
+
+PERMANENT_ROOMS = {
+    'FS1': {'name': 'Formation Skydiving Panel 1', 'scoring_type': 'fs-points', 'panel_size': 5},
+    'FS2': {'name': 'Formation Skydiving Panel 2', 'scoring_type': 'fs-points', 'panel_size': 5},
+    'CP1': {'name': 'Canopy Piloting', 'scoring_type': 'cp-freestyle', 'panel_size': 5},
+    'WS1': {'name': 'Wingsuit', 'scoring_type': 'ws-free', 'panel_size': 3, 'allowed_types': ['ws-free', 'ws-compulsory']},
+    'CF1': {'name': 'Canopy Formation Panel 1', 'scoring_type': 'cf-points', 'panel_size': 5},
+    'CF2': {'name': 'Canopy Formation Panel 2', 'scoring_type': 'cf-points', 'panel_size': 5},
+    'AE1': {'name': 'Artistic Events', 'scoring_type': 'ae-score', 'panel_size': 5},
+}
+
+WS_SCORE_FIELDS = {
+    'ws-free': {
+        'style': (0, 10),
+        'dive_plan': (0, 10),
+        'cam_quality': (0, 7),
+        'cam_progressive': (0, 3),
+    },
+    'ws-compulsory': {
+        'style': (0, 10),
+    },
+    'cp-freestyle': {
+        'score': (0, 10),
+    },
+    'fs-points': {
+        'points': (0, 99),
+    },
+    'cf-points': {
+        'points': (0, 99),
+    },
+    'ae-score': {
+        'score': (0, 10),
+    },
+}
+
+PANEL_SIZES = {
+    'ws-free': 3, 'ws-compulsory': 3,
+    'cp-freestyle': 5, 'fs-points': 5, 'cf-points': 5, 'ae-score': 5,
+}
+
+# --- Redis setup ---
+
+import redis as redis_lib
+
+REDIS_URL = os.environ.get('REDIS_URL', '')
+REDIS_AVAILABLE = False
+redis_client = None
+
+if REDIS_URL:
+    try:
+        redis_client = redis_lib.from_url(REDIS_URL, decode_responses=True)
+        redis_client.ping()
+        REDIS_AVAILABLE = True
+        print("[REDIS] Connected")
+    except Exception as e:
+        redis_client = None
+        print(f"[REDIS] Connection failed ({e}), using in-memory fallback")
+
+# --- SocketIO setup ---
+
+try:
+    from flask_socketio import SocketIO, emit, join_room, leave_room
+    _async_mode = 'gevent' if 'gunicorn' in sys.modules else 'threading'
+    socketio = SocketIO(
+        app,
+        cors_allowed_origins="*",
+        async_mode=_async_mode,
+        message_queue=REDIS_URL if REDIS_AVAILABLE else None,
+        ping_timeout=60,
+        ping_interval=25,
+        logger=False,
+        engineio_logger=False,
+    )
+    SOCKETIO_ENABLED = True
+    print(f"[SOCKETIO] Enabled (async_mode={_async_mode}, redis={'yes' if REDIS_AVAILABLE else 'no'})")
+except ImportError:
+    SOCKETIO_ENABLED = False
+    socketio = None
+    print("[SOCKETIO] Disabled (flask-socketio not installed)")
+
+# --- Room storage with Redis + in-memory fallback ---
+
+WS_ROOMS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ws_scoring_rooms.json')
+_ws_rooms_memory = {}
+
+
+def _save_ws_rooms_to_file():
+    """Persist in-memory rooms to disk (fallback mode)."""
+    try:
+        saveable = {}
+        for code, room in _ws_rooms_memory.items():
+            r = dict(room)
+            r['judges'] = {str(k): {'name': v.get('name', ''), 'connected': False}
+                           for k, v in r.get('judges', {}).items()}
+            r.pop('video', None)
+            # Convert int keys in scores to strings for JSON
+            r['scores'] = {str(k): v for k, v in r.get('scores', {}).items()}
+            saveable[code] = r
+        with open(WS_ROOMS_FILE, 'w') as f:
+            json.dump(saveable, f)
+    except Exception as e:
+        print(f"[WS_ROOMS] Error saving rooms to file: {e}")
+
+
+def _load_ws_rooms_from_file():
+    """Load rooms from disk (fallback mode)."""
+    try:
+        if os.path.exists(WS_ROOMS_FILE):
+            with open(WS_ROOMS_FILE, 'r') as f:
+                rooms = json.load(f)
+            for code, room in rooms.items():
+                room['scores'] = {int(k): v for k, v in room.get('scores', {}).items()}
+                room['judges'] = {int(k): v for k, v in room.get('judges', {}).items()}
+            return rooms
+    except Exception as e:
+        print(f"[WS_ROOMS] Error loading rooms from file: {e}")
+    return {}
+
+
+def _get_ws_room(code):
+    """Get a room by code. Redis-backed with in-memory fallback."""
+    if REDIS_AVAILABLE and redis_client:
+        try:
+            data = redis_client.get(f'ws_room:{code}')
+            if data:
+                room = json.loads(data)
+                room['scores'] = {int(k): v for k, v in room.get('scores', {}).items()}
+                room['judges'] = {int(k): v for k, v in room.get('judges', {}).items()}
+                return room
+            return None
+        except Exception as e:
+            print(f"[REDIS] Error getting room {code}: {e}")
+    return _ws_rooms_memory.get(code)
+
+
+def _set_ws_room(code, room):
+    """Save a room. Redis-backed with in-memory fallback."""
+    if REDIS_AVAILABLE and redis_client:
+        try:
+            saveable = dict(room)
+            saveable['judges'] = {str(k): v for k, v in saveable.get('judges', {}).items()}
+            saveable['scores'] = {str(k): v for k, v in saveable.get('scores', {}).items()}
+            saveable.pop('video', None)
+            redis_client.set(f'ws_room:{code}', json.dumps(saveable))
+            return
+        except Exception as e:
+            print(f"[REDIS] Error saving room {code}: {e}")
+    _ws_rooms_memory[code] = room
+    _save_ws_rooms_to_file()
+
+
+def _del_ws_room(code):
+    """Delete a room."""
+    if REDIS_AVAILABLE and redis_client:
+        try:
+            redis_client.delete(f'ws_room:{code}')
+            return
+        except Exception as e:
+            print(f"[REDIS] Error deleting room {code}: {e}")
+    _ws_rooms_memory.pop(code, None)
+    _save_ws_rooms_to_file()
+
+
+def _get_all_ws_rooms():
+    """Get all rooms as a dict."""
+    if REDIS_AVAILABLE and redis_client:
+        try:
+            rooms = {}
+            cursor = 0
+            while True:
+                cursor, keys = redis_client.scan(cursor, match='ws_room:*', count=100)
+                if keys:
+                    pipe = redis_client.pipeline()
+                    for key in keys:
+                        pipe.get(key)
+                    values = pipe.execute()
+                    for key, val in zip(keys, values):
+                        if val:
+                            code = key.replace('ws_room:', '', 1)
+                            room = json.loads(val)
+                            room['scores'] = {int(k): v for k, v in room.get('scores', {}).items()}
+                            room['judges'] = {int(k): v for k, v in room.get('judges', {}).items()}
+                            rooms[code] = room
+                if cursor == 0:
+                    break
+            return rooms
+        except Exception as e:
+            print(f"[REDIS] Error getting all rooms: {e}")
+    return dict(_ws_rooms_memory)
+
+
+def _ws_room_exists(code):
+    """Check if a room exists."""
+    if REDIS_AVAILABLE and redis_client:
+        try:
+            return redis_client.exists(f'ws_room:{code}') > 0
+        except Exception as e:
+            print(f"[REDIS] Error checking room {code}: {e}")
+    return code in _ws_rooms_memory
+
+
+# --- Initialize rooms ---
+
+# Load from file into memory (fallback data source)
+_ws_rooms_memory = _load_ws_rooms_from_file()
+
+# One-time migration from JSON file to Redis
+if REDIS_AVAILABLE and redis_client:
+    try:
+        existing_keys = redis_client.keys('ws_room:*')
+        if not existing_keys and _ws_rooms_memory:
+            print(f"[REDIS] Migrating {len(_ws_rooms_memory)} rooms from JSON to Redis...")
+            for code, room in _ws_rooms_memory.items():
+                _set_ws_room(code, room)
+            migrated_path = WS_ROOMS_FILE + '.migrated'
+            if os.path.exists(WS_ROOMS_FILE):
+                os.rename(WS_ROOMS_FILE, migrated_path)
+            print("[REDIS] Migration complete")
+    except Exception as e:
+        print(f"[REDIS] Migration error: {e}")
+
+
+def generate_room_code():
+    """Generate a 6-character alphanumeric room code."""
+    chars = string.ascii_uppercase + string.digits
+    for _ in range(100):
+        code = ''.join(random.choices(chars, k=6))
+        if not _ws_room_exists(code):
+            return code
+    return ''.join(random.choices(chars, k=8))
+
+
+def _ensure_permanent_rooms():
+    """Ensure all permanent rooms exist. Create missing ones, don't overwrite existing."""
+    for code, definition in PERMANENT_ROOMS.items():
+        room = _get_ws_room(code)
+        if room is None:
+            new_room = {
+                'event_judge_name': definition['name'],
+                'scoring_type': definition['scoring_type'],
+                'panel_size': definition['panel_size'],
+                'judges': {},
+                'scores': {j: {} for j in range(1, definition['panel_size'] + 1)},
+                'state': 'scoring',
+                'permanent': True,
+                'allowed_types': definition.get('allowed_types'),
+                'created_at': datetime.now().isoformat(),
+            }
+            _set_ws_room(code, new_room)
+        else:
+            changed = False
+            if not room.get('permanent'):
+                room['permanent'] = True
+                changed = True
+            if 'allowed_types' not in room and definition.get('allowed_types'):
+                room['allowed_types'] = definition['allowed_types']
+                changed = True
+            if changed:
+                _set_ws_room(code, room)
+
+
+_ensure_permanent_rooms()
+
+
+# --- Helper ---
+
+def _ws_scoring_completion(room):
+    """Compute per-judge completion status."""
+    required_fields = WS_SCORE_FIELDS.get(room['scoring_type'], {})
+    panel_size = room.get('panel_size', 3)
+    completion = {}
+    for j in range(1, panel_size + 1):
+        judge_scores = room.get('scores', {}).get(j, {})
+        missing = []
+        for field, (min_val, max_val) in required_fields.items():
+            v = judge_scores.get(field)
+            if v is None:
+                missing.append(field)
+            elif v < min_val or v > max_val:
+                missing.append(field)
+        completion[j] = {'complete': len(missing) == 0, 'missing': missing}
+    return completion
+
+
+def _resolve_video_url(url):
+    """Resolve a video URL into playback info."""
+    if not url:
+        return None
+    url = url.strip()
+    # Direct video file URLs
+    video_exts = ('.mp4', '.webm', '.ogg', '.mov')
+    if any(url.lower().split('?')[0].endswith(ext) for ext in video_exts):
+        return {'video_src': url, 'is_direct_url': True}
+    # YouTube
+    yt_match = re.match(r'(?:https?://)?(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/)([\w-]+)', url)
+    if yt_match:
+        return {'embed_url': f'https://www.youtube.com/embed/{yt_match.group(1)}', 'is_direct_url': False}
+    # Vimeo
+    vm_match = re.match(r'(?:https?://)?(?:www\.)?vimeo\.com/(\d+)', url)
+    if vm_match:
+        return {'embed_url': f'https://player.vimeo.com/video/{vm_match.group(1)}', 'is_direct_url': False}
+    # Fallback: treat as direct URL
+    return {'video_src': url, 'is_direct_url': True}
+
+
+# --- HTTP routes for scoring ---
+
+@app.route('/scoring/create', methods=['POST'])
+@login_required
+def create_ws_scoring_room():
+    """Create a scoring room."""
+    data = request.json
+    scoring_type = data.get('scoring_type', 'ws-free')
+
+    if scoring_type not in WS_SCORE_FIELDS:
+        return jsonify({'error': 'Invalid scoring type'}), 400
+
+    panel_size = PANEL_SIZES.get(scoring_type, 5)
+    room_code = generate_room_code()
+    room = {
+        'event_judge_name': session.get('name', session.get('user', 'Unknown')),
+        'scoring_type': scoring_type,
+        'panel_size': panel_size,
+        'judges': {},
+        'scores': {j: {} for j in range(1, panel_size + 1)},
+        'state': 'scoring',
+        'created_at': datetime.now().isoformat(),
+    }
+
+    video_url = data.get('video_url')
+    if video_url:
+        video = _resolve_video_url(video_url)
+        if video:
+            room['video_url'] = video_url
+            room['video'] = video
+
+    _set_ws_room(room_code, room)
+    return jsonify({'success': True, 'room_code': room_code})
+
+
+@app.route('/scoring/join/<room_code>')
+def ws_scoring_join_page(room_code):
+    """Serve the judge scoring page (no login required)."""
+    room = _get_ws_room(room_code)
+    if not room:
+        return "Room not found", 404
+
+    video = room.get('video')
+    if not video and room.get('video_url'):
+        video = _resolve_video_url(room['video_url'])
+
+    return render_template('judge_scoring.html',
+                           room_code=room_code,
+                           event_judge_name=room['event_judge_name'],
+                           scoring_type=room['scoring_type'],
+                           panel_size=room.get('panel_size', 5),
+                           video=video,
+                           is_permanent=room.get('permanent', False),
+                           room_name=PERMANENT_ROOMS.get(room_code, {}).get('name', ''),
+                           allowed_types=room.get('allowed_types'),
+                           score_fields=WS_SCORE_FIELDS)
+
+
+@app.route('/scoring/<room_code>/status')
+def ws_scoring_room_status(room_code):
+    """Get scoring room status."""
+    room = _get_ws_room(room_code)
+    if not room:
+        return jsonify({'error': 'Room not found'}), 404
+
+    return jsonify({
+        'state': room['state'],
+        'judges': {str(k): {'name': v['name'], 'connected': v.get('connected', False)}
+                   for k, v in room.get('judges', {}).items()},
+        'scores': {str(k): v for k, v in room.get('scores', {}).items()},
+        'scoring_type': room['scoring_type'],
+    })
+
+
+@app.route('/scoring/attach-video', methods=['POST'])
+@login_required
+def ws_scoring_attach_video():
+    """Attach a video URL to an existing scoring room."""
+    data = request.json
+    room_code = data.get('room_code')
+    video_url = data.get('video_url')
+
+    room = _get_ws_room(room_code)
+    if not room:
+        return jsonify({'error': 'Room not found'}), 404
+
+    if video_url:
+        video = _resolve_video_url(video_url)
+        if video:
+            room['video_url'] = video_url
+            room['video'] = video
+            _set_ws_room(room_code, room)
+            if SOCKETIO_ENABLED and socketio:
+                socketio.emit('ws_scoring_video_attached', video, room=room_code)
+
+    return jsonify({'success': True})
+
+
+@app.route('/scoring/permanent-rooms')
+@login_required
+def list_permanent_rooms():
+    """List all permanent scoring rooms and their current state."""
+    result = {}
+    for code, definition in PERMANENT_ROOMS.items():
+        room = _get_ws_room(code) or {}
+        result[code] = {
+            'name': definition['name'],
+            'scoring_type': room.get('scoring_type', definition['scoring_type']),
+            'panel_size': room.get('panel_size', definition['panel_size']),
+            'state': room.get('state', 'scoring'),
+            'judges': {str(k): {'name': v.get('name', ''), 'connected': v.get('connected', False)}
+                       for k, v in room.get('judges', {}).items()},
+            'allowed_types': definition.get('allowed_types'),
+        }
+    return jsonify(result)
+
+
+# --- Socket.IO event handlers ---
+
+if SOCKETIO_ENABLED:
+
+    @socketio.on('ws_scoring_join')
+    def on_ws_scoring_join(data):
+        """Judge joins a scoring room."""
+        room_code = data.get('room_code')
+        judge_num = int(data.get('judge_num', 0))
+        judge_name = data.get('judge_name', 'Anonymous')
+
+        room = _get_ws_room(room_code)
+        if not room:
+            emit('ws_scoring_error', {'message': 'Room not found'})
+            return
+
+        panel_size = room.get('panel_size', 3)
+        if judge_num < 1 or judge_num > panel_size:
+            emit('ws_scoring_error', {'message': 'Invalid judge position'})
+            return
+
+        if judge_num in room.get('judges', {}) and room['judges'][judge_num].get('connected'):
+            existing_name = room['judges'][judge_num].get('name', '')
+            existing_sid = room['judges'][judge_num].get('sid')
+            if existing_sid != request.sid and existing_name != judge_name:
+                emit('ws_scoring_error', {'message': f'J{judge_num} position already taken by {existing_name}'})
+                return
+
+        room.setdefault('judges', {})[judge_num] = {
+            'name': judge_name,
+            'connected': True,
+            'sid': request.sid,
+        }
+        join_room(room_code)
+        _set_ws_room(room_code, room)
+
+        video_info = room.get('video')
+        if not video_info and room.get('video_url'):
+            video_info = _resolve_video_url(room['video_url'])
+
+        emit('ws_scoring_joined', {
+            'judge_num': judge_num,
+            'scoring_type': room['scoring_type'],
+            'state': room['state'],
+            'scores': room.get('scores', {}).get(judge_num, {}),
+            'completion': _ws_scoring_completion(room),
+            'video': video_info,
+        })
+
+        emit('ws_scoring_room_update', {
+            'judges': {str(k): {'name': v['name'], 'connected': v.get('connected', False)}
+                       for k, v in room['judges'].items()},
+            'state': room['state'],
+            'scores': {str(k): v for k, v in room.get('scores', {}).items()},
+            'completion': _ws_scoring_completion(room),
+        }, room=room_code)
+
+    @socketio.on('ws_scoring_event_judge_join')
+    def on_ws_scoring_event_judge_join(data):
+        """Event judge connects to receive score updates."""
+        room_code = data.get('room_code')
+
+        if not _ws_room_exists(room_code):
+            emit('ws_scoring_error', {'message': 'Room not found'})
+            return
+
+        room = _get_ws_room(room_code)
+        join_room(room_code)
+
+        emit('ws_scoring_room_update', {
+            'judges': {str(k): {'name': v['name'], 'connected': v.get('connected', False)}
+                       for k, v in room.get('judges', {}).items()},
+            'state': room['state'],
+            'scores': {str(k): v for k, v in room.get('scores', {}).items()},
+            'scoring_type': room['scoring_type'],
+            'completion': _ws_scoring_completion(room),
+        })
+
+    @socketio.on('ws_scoring_set_type')
+    def on_ws_scoring_set_type(data):
+        """Event judge switches scoring type."""
+        room_code = data.get('room_code')
+        new_type = data.get('scoring_type')
+
+        room = _get_ws_room(room_code)
+        if not room:
+            emit('ws_scoring_error', {'message': 'Room not found'})
+            return
+
+        allowed = room.get('allowed_types')
+        if allowed:
+            if new_type not in allowed:
+                emit('ws_scoring_error', {'message': f'This room only supports: {", ".join(allowed)}'})
+                return
+        elif new_type not in WS_SCORE_FIELDS:
+            emit('ws_scoring_error', {'message': 'Invalid scoring type'})
+            return
+
+        panel_size = PANEL_SIZES.get(new_type, 5)
+        room['scoring_type'] = new_type
+        room['panel_size'] = panel_size
+        room['scores'] = {j: {} for j in range(1, panel_size + 1)}
+        room['state'] = 'scoring'
+        _set_ws_room(room_code, room)
+
+        emit('ws_scoring_type_changed', {
+            'scoring_type': new_type,
+            'state': 'scoring',
+            'scores': {str(k): v for k, v in room['scores'].items()},
+            'completion': _ws_scoring_completion(room),
+        }, room=room_code)
+
+    @socketio.on('ws_scoring_submit')
+    def on_ws_scoring_submit(data):
+        """Judge submits/updates a score field."""
+        room_code = data.get('room_code')
+        judge_num = int(data.get('judge_num', 0))
+        field = data.get('field')
+        value = data.get('value')
+
+        room = _get_ws_room(room_code)
+        if not room:
+            emit('ws_scoring_error', {'message': 'Room not found'})
+            return
+
+        if room['state'] == 'complete':
+            emit('ws_scoring_error', {'message': 'Scoring is locked'})
+            return
+
+        panel_size = room.get('panel_size', 3)
+        if judge_num < 1 or judge_num > panel_size:
+            emit('ws_scoring_error', {'message': 'Invalid judge position'})
+            return
+
+        valid_fields = WS_SCORE_FIELDS.get(room['scoring_type'], {})
+        if field not in valid_fields:
+            emit('ws_scoring_error', {'message': f'Invalid field: {field}'})
+            return
+
+        min_val, max_val = valid_fields[field]
+        try:
+            value = float(value) if value not in (None, '') else None
+        except (ValueError, TypeError):
+            value = None
+
+        if value is not None and (value < min_val or value > max_val):
+            emit('ws_scoring_error', {'message': f'{field} must be between {min_val} and {max_val}'})
+            return
+
+        if judge_num not in room.get('scores', {}):
+            room['scores'][judge_num] = {}
+        room['scores'][judge_num][field] = value
+        _set_ws_room(room_code, room)
+
+        completion = _ws_scoring_completion(room)
+
+        emit('ws_scoring_score_update', {
+            'judge_num': judge_num,
+            'field': field,
+            'value': value,
+            'all_scores': {str(k): v for k, v in room['scores'].items()},
+            'completion': completion,
+        }, room=room_code)
+
+    @socketio.on('ws_scoring_lock')
+    def on_ws_scoring_lock(data):
+        """Event judge locks scores."""
+        room_code = data.get('room_code')
+
+        room = _get_ws_room(room_code)
+        if not room:
+            emit('ws_scoring_error', {'message': 'Room not found'})
+            return
+
+        completion = _ws_scoring_completion(room)
+        panel_size = room.get('panel_size', 3)
+        errors = []
+        for j in range(1, panel_size + 1):
+            if not completion[j]['complete']:
+                missing_str = ', '.join(completion[j]['missing'])
+                errors.append(f'J{j} missing: {missing_str}')
+
+        if errors:
+            emit('ws_scoring_error', {'message': 'Cannot lock - ' + '; '.join(errors)})
+            return
+
+        room['state'] = 'complete'
+        _set_ws_room(room_code, room)
+
+        emit('ws_scoring_state_change', {
+            'state': 'complete',
+            'completion': completion,
+        }, room=room_code)
+
+    @socketio.on('ws_scoring_reset')
+    def on_ws_scoring_reset(data):
+        """Event judge resets all scores."""
+        room_code = data.get('room_code')
+
+        room = _get_ws_room(room_code)
+        if not room:
+            emit('ws_scoring_error', {'message': 'Room not found'})
+            return
+
+        panel_size = room.get('panel_size', 3)
+        room['scores'] = {j: {} for j in range(1, panel_size + 1)}
+        room['state'] = 'scoring'
+        _set_ws_room(room_code, room)
+
+        emit('ws_scoring_reset_all', {
+            'state': 'scoring',
+            'scores': {str(k): v for k, v in room['scores'].items()},
+            'scoring_type': room['scoring_type'],
+            'completion': _ws_scoring_completion(room),
+        }, room=room_code)
+
+    @socketio.on('ws_scoring_leave')
+    def on_ws_scoring_leave(data):
+        """Judge disconnects from scoring room."""
+        room_code = data.get('room_code')
+        judge_num = int(data.get('judge_num', 0))
+
+        room = _get_ws_room(room_code)
+        if not room:
+            return
+
+        if judge_num in room.get('judges', {}):
+            room['judges'][judge_num]['connected'] = False
+            _set_ws_room(room_code, room)
+
+        leave_room(room_code)
+
+        emit('ws_scoring_room_update', {
+            'judges': {str(k): {'name': v['name'], 'connected': v.get('connected', False)}
+                       for k, v in room.get('judges', {}).items()},
+            'state': room['state'],
+            'scores': {str(k): v for k, v in room.get('scores', {}).items()},
+        }, room=room_code)
+
+    @socketio.on('disconnect')
+    def on_disconnect():
+        """Handle unexpected disconnection - mark judge as disconnected."""
+        all_rooms = _get_all_ws_rooms()
+        for code, room in all_rooms.items():
+            for judge_num, judge in room.get('judges', {}).items():
+                if judge.get('sid') == request.sid and judge.get('connected'):
+                    judge['connected'] = False
+                    _set_ws_room(code, room)
+                    if SOCKETIO_ENABLED and socketio:
+                        socketio.emit('ws_scoring_room_update', {
+                            'judges': {str(k): {'name': v['name'], 'connected': v.get('connected', False)}
+                                       for k, v in room.get('judges', {}).items()},
+                            'state': room['state'],
+                            'scores': {str(k): v for k, v in room.get('scores', {}).items()},
+                        }, room=code)
+                    break
+
+    # Video sync events
+    @socketio.on('ws_scoring_video_play')
+    def on_ws_scoring_video_play(data):
+        room_code = data.get('room_code')
+        if _ws_room_exists(room_code):
+            emit('ws_scoring_video_play', {'time': data.get('time', 0)}, room=room_code, include_self=False)
+
+    @socketio.on('ws_scoring_video_pause')
+    def on_ws_scoring_video_pause(data):
+        room_code = data.get('room_code')
+        if _ws_room_exists(room_code):
+            emit('ws_scoring_video_pause', {'time': data.get('time', 0)}, room=room_code, include_self=False)
+
+    @socketio.on('ws_scoring_video_seek')
+    def on_ws_scoring_video_seek(data):
+        room_code = data.get('room_code')
+        if _ws_room_exists(room_code):
+            emit('ws_scoring_video_seek', {'time': data.get('time', 0)}, room=room_code, include_self=False)
+
+
+# ==================== APP ENTRY POINT ====================
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV', 'development') == 'development'
@@ -1901,4 +2609,7 @@ if __name__ == '__main__':
     print("\nDefault logins:")
     print("  Admin: admin / admin123")
     print("  Student: student / student123\n")
-    app.run(debug=debug, host='0.0.0.0', port=port)
+    if SOCKETIO_ENABLED:
+        socketio.run(app, debug=debug, host='0.0.0.0', port=port)
+    else:
+        app.run(debug=debug, host='0.0.0.0', port=port)

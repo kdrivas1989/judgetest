@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scoring Room {{ room_code }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        .judge-connected { border-left: 4px solid #22c55e; }
+        .judge-disconnected { border-left: 4px solid #ef4444; }
+        .judge-empty { border-left: 4px solid #d1d5db; }
+        .score-complete { background-color: #f0fdf4; }
+        .score-incomplete { background-color: #fefce8; }
+        .score-locked { background-color: #eff6ff; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Header -->
+    <div class="bg-blue-600 text-white py-3 px-4 shadow">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
+            <div>
+                <h1 class="text-lg font-bold">
+                    {% if room_name %}{{ room_name }}{% else %}Scoring Room{% endif %}
+                    <span class="text-blue-200 font-mono ml-2">{{ room_code }}</span>
+                </h1>
+                <p class="text-blue-200 text-sm">Event Judge: {{ event_judge_name }}</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="connectionStatus" class="text-xs px-2 py-1 rounded bg-red-500">Disconnected</span>
+                <span id="scoringTypeLabel" class="text-xs px-2 py-1 rounded bg-blue-800 uppercase">{{ scoring_type }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Join Panel (shown before joining) -->
+    <div id="joinPanel" class="max-w-md mx-auto mt-12 bg-white rounded-lg shadow-lg p-6">
+        <h2 class="text-xl font-bold mb-4 text-center">Join Scoring Room</h2>
+        <p class="text-gray-500 text-sm text-center mb-6">Room: <span class="font-mono font-bold">{{ room_code }}</span></p>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-gray-700 font-medium mb-1">Your Name</label>
+                <input type="text" id="judgeName" placeholder="Enter your name"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-gray-700 font-medium mb-1">Role</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="setRole('judge')" id="roleJudgeBtn"
+                        class="px-4 py-2 border-2 border-blue-500 bg-blue-50 text-blue-700 rounded-lg font-medium">
+                        Judge
+                    </button>
+                    <button onclick="setRole('event_judge')" id="roleEventBtn"
+                        class="px-4 py-2 border-2 border-gray-300 text-gray-600 rounded-lg font-medium">
+                        Event Judge
+                    </button>
+                </div>
+            </div>
+            <div id="judgeNumRow">
+                <label class="block text-gray-700 font-medium mb-1">Judge Position</label>
+                <div class="grid grid-cols-{{ panel_size }} gap-2" id="judgePositions">
+                    {% for i in range(1, panel_size + 1) %}
+                    <button onclick="selectPosition({{ i }})" data-pos="{{ i }}"
+                        class="judge-pos-btn px-3 py-2 border-2 border-gray-300 rounded-lg text-center font-medium hover:border-blue-400">
+                        J{{ i }}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            <button onclick="joinRoom()" id="joinBtn"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition mt-2">
+                Join Room
+            </button>
+        </div>
+    </div>
+
+    <!-- Scoring Panel (shown after joining) -->
+    <div id="scoringPanel" class="hidden max-w-6xl mx-auto mt-4 px-4 pb-8">
+        <!-- Video Section -->
+        <div id="videoSection" class="hidden mb-4">
+            <div class="bg-black rounded-lg overflow-hidden">
+                <video id="videoPlayer" class="w-full" style="max-height: 400px;" controls>
+                    Your browser does not support the video tag.
+                </video>
+                <iframe id="videoEmbed" class="hidden w-full" style="height: 400px;" frameborder="0"
+                    allow="autoplay; fullscreen" allowfullscreen></iframe>
+            </div>
+        </div>
+
+        <!-- Event Judge Controls -->
+        <div id="eventJudgeControls" class="hidden mb-4 bg-white rounded-lg shadow p-4">
+            <div class="flex flex-wrap items-center gap-3">
+                {% if allowed_types %}
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium text-gray-600">Type:</label>
+                    <select id="scoringTypeSelect" onchange="changeScoringType(this.value)"
+                        class="px-3 py-1.5 border rounded-lg text-sm">
+                        {% for t in allowed_types %}
+                        <option value="{{ t }}" {% if t == scoring_type %}selected{% endif %}>{{ t }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="flex items-center gap-2">
+                    <input type="text" id="videoUrlInput" placeholder="Paste video URL..."
+                        class="px-3 py-1.5 border rounded-lg text-sm w-64">
+                    <button onclick="attachVideo()" class="px-3 py-1.5 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700">
+                        Attach
+                    </button>
+                </div>
+                <div class="ml-auto flex gap-2">
+                    <button onclick="lockScores()" id="lockBtn"
+                        class="px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
+                        Lock Scores
+                    </button>
+                    <button onclick="resetScores()" id="resetBtn"
+                        class="px-4 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">
+                        Reset All
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Judge Status Cards -->
+        <div id="judgeCards" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+            <!-- Populated by JS -->
+        </div>
+
+        <!-- My Score Input (for judges only) -->
+        <div id="myScoreSection" class="hidden bg-white rounded-lg shadow p-4 mb-4">
+            <h3 class="font-bold text-lg mb-3">Your Score <span id="myJudgeLabel" class="text-blue-600"></span></h3>
+            <div id="scoreFields" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Populated by JS based on scoring type -->
+            </div>
+        </div>
+
+        <!-- State Banner -->
+        <div id="stateBanner" class="hidden bg-blue-100 border border-blue-300 text-blue-800 px-4 py-3 rounded-lg text-center font-medium">
+            Scores are locked.
+        </div>
+
+        <!-- Error Banner -->
+        <div id="errorBanner" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4"></div>
+    </div>
+
+    <script>
+    // --- Config from server ---
+    const ROOM_CODE = {{ room_code | tojson }};
+    const SCORE_FIELDS = {{ score_fields | tojson }};
+    const PANEL_SIZE = {{ panel_size }};
+
+    // --- State ---
+    let socket = null;
+    let myRole = 'judge';
+    let myJudgeNum = 0;
+    let myName = '';
+    let currentScoringType = {{ scoring_type | tojson }};
+    let currentState = 'scoring';
+    let allScores = {};
+    let allJudges = {};
+
+    // --- Join UI ---
+    function setRole(role) {
+        myRole = role;
+        document.getElementById('roleJudgeBtn').className = role === 'judge'
+            ? 'px-4 py-2 border-2 border-blue-500 bg-blue-50 text-blue-700 rounded-lg font-medium'
+            : 'px-4 py-2 border-2 border-gray-300 text-gray-600 rounded-lg font-medium';
+        document.getElementById('roleEventBtn').className = role === 'event_judge'
+            ? 'px-4 py-2 border-2 border-blue-500 bg-blue-50 text-blue-700 rounded-lg font-medium'
+            : 'px-4 py-2 border-2 border-gray-300 text-gray-600 rounded-lg font-medium';
+        document.getElementById('judgeNumRow').style.display = role === 'judge' ? '' : 'none';
+    }
+
+    function selectPosition(num) {
+        myJudgeNum = num;
+        document.querySelectorAll('.judge-pos-btn').forEach(btn => {
+            const pos = parseInt(btn.dataset.pos);
+            btn.className = pos === num
+                ? 'judge-pos-btn px-3 py-2 border-2 border-blue-500 bg-blue-50 text-blue-700 rounded-lg text-center font-medium'
+                : 'judge-pos-btn px-3 py-2 border-2 border-gray-300 rounded-lg text-center font-medium hover:border-blue-400';
+        });
+    }
+
+    function joinRoom() {
+        myName = document.getElementById('judgeName').value.trim();
+        if (!myName) { alert('Please enter your name'); return; }
+        if (myRole === 'judge' && myJudgeNum === 0) { alert('Please select a judge position'); return; }
+
+        document.getElementById('joinPanel').classList.add('hidden');
+        document.getElementById('scoringPanel').classList.remove('hidden');
+
+        if (myRole === 'event_judge') {
+            document.getElementById('eventJudgeControls').classList.remove('hidden');
+        } else {
+            document.getElementById('myScoreSection').classList.remove('hidden');
+            document.getElementById('myJudgeLabel').textContent = '(J' + myJudgeNum + ')';
+        }
+
+        connectSocket();
+    }
+
+    // --- Socket.IO ---
+    function connectSocket() {
+        socket = io({ transports: ['websocket', 'polling'] });
+
+        socket.on('connect', () => {
+            document.getElementById('connectionStatus').textContent = 'Connected';
+            document.getElementById('connectionStatus').className = 'text-xs px-2 py-1 rounded bg-green-500';
+
+            if (myRole === 'event_judge') {
+                socket.emit('ws_scoring_event_judge_join', { room_code: ROOM_CODE });
+            } else {
+                socket.emit('ws_scoring_join', {
+                    room_code: ROOM_CODE,
+                    judge_num: myJudgeNum,
+                    judge_name: myName
+                });
+            }
+        });
+
+        socket.on('disconnect', () => {
+            document.getElementById('connectionStatus').textContent = 'Disconnected';
+            document.getElementById('connectionStatus').className = 'text-xs px-2 py-1 rounded bg-red-500';
+        });
+
+        socket.on('ws_scoring_joined', (data) => {
+            currentScoringType = data.scoring_type;
+            currentState = data.state;
+            document.getElementById('scoringTypeLabel').textContent = currentScoringType;
+            renderScoreFields();
+            if (data.scores) {
+                for (const [field, value] of Object.entries(data.scores)) {
+                    const input = document.getElementById('score_' + field);
+                    if (input && value !== null) input.value = value;
+                }
+            }
+            if (data.video) setupVideo(data.video);
+            updateStateBanner();
+        });
+
+        socket.on('ws_scoring_room_update', (data) => {
+            allJudges = data.judges || {};
+            allScores = data.all_scores || data.scores || {};
+            if (data.scoring_type) {
+                currentScoringType = data.scoring_type;
+                document.getElementById('scoringTypeLabel').textContent = currentScoringType;
+            }
+            if (data.state) currentState = data.state;
+            renderJudgeCards(data.completion);
+            updateStateBanner();
+        });
+
+        socket.on('ws_scoring_score_update', (data) => {
+            allScores = data.all_scores || {};
+            renderJudgeCards(data.completion);
+        });
+
+        socket.on('ws_scoring_state_change', (data) => {
+            currentState = data.state;
+            updateStateBanner();
+            renderJudgeCards(data.completion);
+        });
+
+        socket.on('ws_scoring_type_changed', (data) => {
+            currentScoringType = data.scoring_type;
+            currentState = data.state || 'scoring';
+            allScores = data.scores || {};
+            document.getElementById('scoringTypeLabel').textContent = currentScoringType;
+            if (myRole === 'judge') renderScoreFields();
+            renderJudgeCards(data.completion);
+            updateStateBanner();
+        });
+
+        socket.on('ws_scoring_reset_all', (data) => {
+            currentState = data.state || 'scoring';
+            allScores = data.scores || {};
+            if (data.scoring_type) {
+                currentScoringType = data.scoring_type;
+                document.getElementById('scoringTypeLabel').textContent = currentScoringType;
+            }
+            if (myRole === 'judge') {
+                renderScoreFields();
+            }
+            renderJudgeCards(data.completion);
+            updateStateBanner();
+        });
+
+        socket.on('ws_scoring_video_attached', (data) => {
+            setupVideo(data);
+        });
+
+        socket.on('ws_scoring_video_play', (data) => {
+            const vid = document.getElementById('videoPlayer');
+            if (vid && !vid.classList.contains('hidden')) {
+                vid.currentTime = data.time || 0;
+                vid.play();
+            }
+        });
+
+        socket.on('ws_scoring_video_pause', (data) => {
+            const vid = document.getElementById('videoPlayer');
+            if (vid && !vid.classList.contains('hidden')) {
+                vid.currentTime = data.time || 0;
+                vid.pause();
+            }
+        });
+
+        socket.on('ws_scoring_video_seek', (data) => {
+            const vid = document.getElementById('videoPlayer');
+            if (vid && !vid.classList.contains('hidden')) {
+                vid.currentTime = data.time || 0;
+            }
+        });
+
+        socket.on('ws_scoring_error', (data) => {
+            showError(data.message);
+        });
+    }
+
+    // --- Video ---
+    function setupVideo(videoInfo) {
+        if (!videoInfo) return;
+        const section = document.getElementById('videoSection');
+        const player = document.getElementById('videoPlayer');
+        const embed = document.getElementById('videoEmbed');
+
+        if (videoInfo.is_direct_url && videoInfo.video_src) {
+            player.src = videoInfo.video_src;
+            player.classList.remove('hidden');
+            embed.classList.add('hidden');
+            section.classList.remove('hidden');
+
+            // Sync events (event judge controls playback)
+            if (myRole === 'event_judge') {
+                player.onplay = () => socket.emit('ws_scoring_video_play', { room_code: ROOM_CODE, time: player.currentTime });
+                player.onpause = () => socket.emit('ws_scoring_video_pause', { room_code: ROOM_CODE, time: player.currentTime });
+                player.onseeked = () => socket.emit('ws_scoring_video_seek', { room_code: ROOM_CODE, time: player.currentTime });
+            }
+        } else if (videoInfo.embed_url) {
+            embed.src = videoInfo.embed_url;
+            embed.classList.remove('hidden');
+            player.classList.add('hidden');
+            section.classList.remove('hidden');
+        }
+    }
+
+    function attachVideo() {
+        const url = document.getElementById('videoUrlInput').value.trim();
+        if (!url) return;
+        fetch('/scoring/attach-video', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ room_code: ROOM_CODE, video_url: url })
+        }).then(r => r.json()).then(data => {
+            if (data.error) showError(data.error);
+            document.getElementById('videoUrlInput').value = '';
+        });
+    }
+
+    // --- Score Fields ---
+    function renderScoreFields() {
+        const fields = SCORE_FIELDS[currentScoringType] || {};
+        const container = document.getElementById('scoreFields');
+        container.innerHTML = '';
+
+        for (const [field, [minVal, maxVal]] of Object.entries(fields)) {
+            const label = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const step = maxVal <= 10 ? '0.1' : '1';
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <label class="block text-gray-700 font-medium mb-1">${label} (${minVal}-${maxVal})</label>
+                <input type="number" id="score_${field}" min="${minVal}" max="${maxVal}" step="${step}"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-lg"
+                    onchange="submitScore('${field}', this.value)"
+                    ${currentState === 'complete' ? 'disabled' : ''}>
+            `;
+            container.appendChild(div);
+        }
+    }
+
+    function submitScore(field, value) {
+        if (!socket || currentState === 'complete') return;
+        socket.emit('ws_scoring_submit', {
+            room_code: ROOM_CODE,
+            judge_num: myJudgeNum,
+            field: field,
+            value: value
+        });
+    }
+
+    // --- Judge Cards ---
+    function renderJudgeCards(completion) {
+        const container = document.getElementById('judgeCards');
+        container.innerHTML = '';
+        const fields = SCORE_FIELDS[currentScoringType] || {};
+
+        for (let j = 1; j <= PANEL_SIZE; j++) {
+            const jStr = String(j);
+            const judge = allJudges[jStr];
+            const scores = allScores[jStr] || {};
+            const comp = completion ? completion[jStr] || completion[j] : null;
+
+            let borderClass = 'judge-empty';
+            let statusText = 'Empty';
+            let statusColor = 'text-gray-400';
+
+            if (judge) {
+                if (judge.connected) {
+                    borderClass = 'judge-connected';
+                    statusText = 'Connected';
+                    statusColor = 'text-green-600';
+                } else {
+                    borderClass = 'judge-disconnected';
+                    statusText = 'Disconnected';
+                    statusColor = 'text-red-500';
+                }
+            }
+
+            let bgClass = '';
+            if (currentState === 'complete') bgClass = 'score-locked';
+            else if (comp && comp.complete) bgClass = 'score-complete';
+            else if (judge) bgClass = 'score-incomplete';
+
+            let scoresHtml = '';
+            for (const [field, [minVal, maxVal]] of Object.entries(fields)) {
+                const val = scores[field];
+                const label = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                scoresHtml += `<div class="flex justify-between text-sm">
+                    <span class="text-gray-500">${label}</span>
+                    <span class="font-mono font-bold ${val !== undefined && val !== null ? 'text-gray-800' : 'text-gray-300'}">${val !== undefined && val !== null ? val : '-'}</span>
+                </div>`;
+            }
+
+            container.innerHTML += `
+                <div class="${borderClass} ${bgClass} bg-white rounded-lg shadow p-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-bold text-gray-700">J${j}</span>
+                        <span class="${statusColor} text-xs">${statusText}</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2 truncate">${judge ? judge.name : '—'}</p>
+                    <div class="space-y-1">${scoresHtml}</div>
+                </div>
+            `;
+        }
+    }
+
+    // --- Event Judge Controls ---
+    function changeScoringType(newType) {
+        if (!socket) return;
+        socket.emit('ws_scoring_set_type', { room_code: ROOM_CODE, scoring_type: newType });
+    }
+
+    function lockScores() {
+        if (!socket || currentState === 'complete') return;
+        if (!confirm('Lock all scores? Judges will not be able to edit.')) return;
+        socket.emit('ws_scoring_lock', { room_code: ROOM_CODE });
+    }
+
+    function resetScores() {
+        if (!socket) return;
+        if (!confirm('Reset ALL scores? This cannot be undone.')) return;
+        socket.emit('ws_scoring_reset', { room_code: ROOM_CODE });
+    }
+
+    // --- UI helpers ---
+    function updateStateBanner() {
+        const banner = document.getElementById('stateBanner');
+        if (currentState === 'complete') {
+            banner.classList.remove('hidden');
+            banner.textContent = 'Scores are locked.';
+            // Disable score inputs
+            document.querySelectorAll('#scoreFields input').forEach(i => i.disabled = true);
+        } else {
+            banner.classList.add('hidden');
+            document.querySelectorAll('#scoreFields input').forEach(i => i.disabled = false);
+        }
+    }
+
+    function showError(msg) {
+        const banner = document.getElementById('errorBanner');
+        banner.textContent = msg;
+        banner.classList.remove('hidden');
+        setTimeout(() => banner.classList.add('hidden'), 5000);
+    }
+
+    // --- Cleanup ---
+    window.addEventListener('beforeunload', () => {
+        if (socket && myRole === 'judge' && myJudgeNum > 0) {
+            socket.emit('ws_scoring_leave', { room_code: ROOM_CODE, judge_num: myJudgeNum });
+        }
+    });
+    </script>
+</body>
+</html>
