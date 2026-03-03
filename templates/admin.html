@@ -11,6 +11,9 @@
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-xl font-bold">USPA Judge Test - Admin Panel</h1>
             <div class="flex items-center gap-4">
+                {% if is_jwg %}
+                <a href="/jwg" class="bg-red-700 hover:bg-red-800 px-4 py-2 rounded">JWG Dashboard</a>
+                {% endif %}
                 <a href="/proctor" class="bg-red-700 hover:bg-red-800 px-4 py-2 rounded">View as Examiner</a>
                 <button onclick="openPasswordModal()" class="bg-red-700 hover:bg-red-800 px-4 py-2 rounded">Change Password</button>
                 <a href="/logout" class="bg-red-700 hover:bg-red-800 px-4 py-2 rounded">Logout</a>

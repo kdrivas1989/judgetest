@@ -218,6 +218,19 @@ def init_db():
         )
     ''')
 
+    # Create question_flags table for JWG flagged questions
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS question_flags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            test_id TEXT NOT NULL,
+            question_id INTEGER NOT NULL,
+            flagged_by TEXT NOT NULL,
+            flagged_at TEXT NOT NULL,
+            flagger_name TEXT NOT NULL,
+            UNIQUE(test_id, question_id)
+        )
+    ''')
+
     # Add default admin if not exists
     cursor.execute('SELECT username FROM users WHERE username = ?', ('admin',))
     if not cursor.fetchone():
@@ -244,12 +257,32 @@ def init_db():
                 (email, 'password', 'jwg,admin' if email == 'kdrivas1989@gmail.com' else 'jwg', name, '[]', '[]')
             )
 
-    # Ensure kdrivas1989@gmail.com has admin role
+    # Ensure kdrivas1989@gmail.com has admin and jwg roles
     cursor.execute('SELECT role FROM users WHERE username = ?', ('kdrivas1989@gmail.com',))
     row = cursor.fetchone()
-    if row and 'admin' not in row[0]:
-        cursor.execute('UPDATE users SET role = ? WHERE username = ?',
-                       (row[0] + ',admin', 'kdrivas1989@gmail.com'))
+    if row:
+        role_str = row[0]
+        if 'admin' not in role_str:
+            role_str = role_str + ',admin'
+        if 'jwg' not in role_str:
+            role_str = role_str + ',jwg'
+        if role_str != row[0]:
+            cursor.execute('UPDATE users SET role = ? WHERE username = ?',
+                           (role_str, 'kdrivas1989@gmail.com'))
+
+    # Auto-seed any missing tests from DEFAULT_TESTS
+    cursor.execute('SELECT test_id FROM tests')
+    existing_tests = {row[0] for row in cursor.fetchall()}
+    missing = [tid for tid in DEFAULT_TESTS if tid not in existing_tests]
+    if missing:
+        for test_id in missing:
+            test_data = DEFAULT_TESTS[test_id]
+            cursor.execute('''
+                INSERT OR REPLACE INTO tests (test_id, name, chapter, passing_score, questions)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (test_id, test_data['name'], test_data['chapter'],
+                  test_data['passing_score'], json.dumps(test_data['questions'])))
+        print(f"Auto-seeded {len(missing)} missing tests to database: {missing}")
 
     conn.commit()
     conn.close()
@@ -454,6 +487,45 @@ def get_question_changes(test_id, question_id):
             'changes': json.loads(row['changes'])
         })
     return changes
+
+
+def get_question_flags(test_id=None):
+    """Get question flags, optionally filtered by test_id."""
+    db = get_sqlite_db()
+    if test_id:
+        cursor = db.execute('SELECT * FROM question_flags WHERE test_id = ?', (test_id,))
+    else:
+        cursor = db.execute('SELECT * FROM question_flags')
+    flags = {}
+    for row in cursor.fetchall():
+        key = f"{row['test_id']}_{row['question_id']}"
+        flags[key] = {
+            'flagged_by': row['flagged_by'],
+            'flagged_at': row['flagged_at'],
+            'flagger_name': row['flagger_name']
+        }
+    return flags
+
+
+def save_question_flag(test_id, question_id, username, name):
+    """Save a question flag."""
+    flagged_at = datetime.now().isoformat()
+    db = get_sqlite_db()
+    db.execute('''
+        INSERT OR REPLACE INTO question_flags
+        (test_id, question_id, flagged_by, flagged_at, flagger_name)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (test_id, question_id, username, flagged_at, name))
+    db.commit()
+    return True
+
+
+def remove_question_flag(test_id, question_id):
+    """Remove a question flag."""
+    db = get_sqlite_db()
+    db.execute('DELETE FROM question_flags WHERE test_id = ? AND question_id = ?', (test_id, question_id))
+    db.commit()
+    return True
 
 
 def get_test_questions(test_id):
@@ -1157,7 +1229,8 @@ def admin_dashboard():
                          results=all_results,
                          tests=all_tests,
                          needs_seeding=needs_seeding,
-                         needs_migration=needs_migration)
+                         needs_migration=needs_migration,
+                         is_jwg=has_role(session.get('role', ''), 'jwg'))
 
 
 @app.route('/admin/add-proctor', methods=['POST'])
@@ -1393,26 +1466,33 @@ def jwg_dashboard():
     """Dashboard for Judges Working Group members to verify question references."""
     all_tests = get_all_tests()
     verifications = get_question_verifications()
+    flags = get_question_flags()
 
-    # Calculate verification stats per test
+    # Calculate verification and flag stats per test
+    total_flagged = 0
     test_stats = {}
     for test_id, test_data in all_tests.items():
         questions = test_data.get('questions', [])
         total = len(questions)
         verified = sum(1 for q in questions if f"{test_id}_{q['id']}" in verifications)
+        flag_count = sum(1 for q in questions if f"{test_id}_{q['id']}" in flags)
+        total_flagged += flag_count
         test_stats[test_id] = {
             'name': test_data['name'],
             'chapter': test_data['chapter'],
             'total': total,
             'verified': verified,
-            'percent': round((verified / total * 100) if total > 0 else 0, 1)
+            'percent': round((verified / total * 100) if total > 0 else 0, 1),
+            'flagged': flag_count
         }
 
     return render_template('jwg.html',
                          test_stats=test_stats,
                          categories=CATEGORIES,
                          user=session.get('user'),
-                         name=session.get('name'))
+                         name=session.get('name'),
+                         is_admin=has_role(session.get('role', ''), 'admin'),
+                         total_flagged=total_flagged)
 
 
 @app.route('/jwg/verify/<test_id>')
@@ -1426,8 +1506,9 @@ def jwg_verify_test(test_id):
     test = all_tests[test_id]
     questions = test.get('questions', [])
     verifications = get_question_verifications(test_id)
+    flags = get_question_flags(test_id)
 
-    # Add verification status to each question
+    # Add verification and flag status to each question
     for q in questions:
         key = f"{test_id}_{q['id']}"
         if key in verifications:
@@ -1436,13 +1517,19 @@ def jwg_verify_test(test_id):
             q['verified_at'] = verifications[key]['verified_at']
         else:
             q['verified'] = False
+        if key in flags:
+            q['flagged'] = True
+            q['flagged_by'] = flags[key]['flagger_name']
+        else:
+            q['flagged'] = False
 
     return render_template('jwg_verify.html',
                          test_id=test_id,
                          test_name=test['name'],
                          questions=questions,
                          user=session.get('user'),
-                         name=session.get('name'))
+                         name=session.get('name'),
+                         is_admin=has_role(session.get('role', ''), 'admin'))
 
 
 @app.route('/jwg/verify-question', methods=['POST'])
@@ -1577,6 +1664,96 @@ def jwg_question_history():
 
     changes = get_question_changes(test_id, question_id)
     return jsonify({'success': True, 'changes': changes})
+
+
+@app.route('/jwg/flag-question', methods=['POST'])
+@jwg_required
+def jwg_flag_question():
+    """API endpoint to flag or unflag a question."""
+    data = request.json
+    test_id = data.get('test_id')
+    question_id = data.get('question_id')
+    action = data.get('action', 'flag')  # 'flag' or 'unflag'
+
+    if not test_id or question_id is None:
+        return jsonify({'error': 'test_id and question_id are required'}), 400
+
+    # Verify the test and question exist
+    all_tests = get_all_tests()
+    if test_id not in all_tests:
+        return jsonify({'error': 'Test not found'}), 404
+
+    questions = all_tests[test_id].get('questions', [])
+    question_exists = any(q['id'] == question_id for q in questions)
+    if not question_exists:
+        return jsonify({'error': 'Question not found'}), 404
+
+    username = session.get('user')
+    name = session.get('name')
+
+    if action == 'flag':
+        save_question_flag(test_id, question_id, username, name)
+        return jsonify({
+            'success': True,
+            'message': 'Question flagged',
+            'flagged_by': name
+        })
+    elif action == 'unflag':
+        remove_question_flag(test_id, question_id)
+        return jsonify({'success': True, 'message': 'Flag removed'})
+    else:
+        return jsonify({'error': 'Invalid action'}), 400
+
+
+@app.route('/jwg/flagged-report')
+@jwg_required
+def jwg_flagged_report():
+    """Report page showing all flagged questions grouped by chapter."""
+    all_tests = get_all_tests()
+    flags = get_question_flags()
+
+    # Build flagged questions list grouped by chapter
+    flagged_by_chapter = {}
+    for key, flag_data in flags.items():
+        test_id, question_id_str = key.rsplit('_', 1)
+        question_id = int(question_id_str)
+
+        if test_id not in all_tests:
+            continue
+
+        test = all_tests[test_id]
+        questions = test.get('questions', [])
+        question = next((q for q in questions if q['id'] == question_id), None)
+        if not question:
+            continue
+
+        chapter = test.get('chapter', 'Unknown')
+        if chapter not in flagged_by_chapter:
+            flagged_by_chapter[chapter] = []
+
+        flagged_by_chapter[chapter].append({
+            'test_id': test_id,
+            'test_name': test['name'],
+            'question_id': question_id,
+            'question': question.get('question', ''),
+            'options': question.get('options', []),
+            'correct': question.get('correct', 0),
+            'correct_section': question.get('correct_section', ''),
+            'flagged_by': flag_data['flagger_name'],
+            'flagged_at': flag_data['flagged_at']
+        })
+
+    # Sort chapters
+    sorted_chapters = dict(sorted(flagged_by_chapter.items()))
+
+    total_flagged = sum(len(items) for items in sorted_chapters.values())
+
+    return render_template('jwg_flagged_report.html',
+                         flagged_by_chapter=sorted_chapters,
+                         total_flagged=total_flagged,
+                         user=session.get('user'),
+                         name=session.get('name'),
+                         is_admin=has_role(session.get('role', ''), 'admin'))
 
 
 @app.route('/admin/add-jwg', methods=['POST'])

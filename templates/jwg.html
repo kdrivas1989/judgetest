@@ -11,6 +11,9 @@
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-xl font-bold">USPA Judge Test - Judges Working Group</h1>
             <div class="flex items-center gap-4">
+                {% if is_admin %}
+                <a href="/admin" class="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded">Admin Panel</a>
+                {% endif %}
                 <span class="text-blue-100">{{ name }}</span>
                 <a href="/logout" class="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded">Logout</a>
             </div>
@@ -24,7 +27,7 @@
         </div>
 
         <!-- Verification Progress Overview -->
-        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div class="grid md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             {% set total_questions = namespace(count=0) %}
             {% set total_verified = namespace(count=0) %}
             {% for test_id, stats in test_stats.items() %}
@@ -52,7 +55,25 @@
                 {% endif %}
                 <p class="text-sm text-gray-600">Complete</p>
             </div>
+            <div class="bg-white rounded-lg shadow p-6 text-center border-2 {% if total_flagged > 0 %}border-red-300{% else %}border-gray-200{% endif %}">
+                <p class="text-3xl font-bold text-red-600">{{ total_flagged }}</p>
+                <p class="text-sm text-gray-600">Flagged</p>
+            </div>
         </div>
+
+        {% if total_flagged > 0 %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-8 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M3 6a3 3 0 013-3h1.172a2 2 0 011.414.586l.828.828A2 2 0 0010.828 5H14a3 3 0 013 3v6a3 3 0 01-3 3H6a3 3 0 01-3-3V6z"/>
+                </svg>
+                <span class="text-red-800 font-medium">{{ total_flagged }} question{{ 's' if total_flagged != 1 }} flagged as needing replacement</span>
+            </div>
+            <a href="/jwg/flagged-report" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-medium">
+                View Flagged Report
+            </a>
+        </div>
+        {% endif %}
 
         <!-- Tests by Category -->
         {% for cat_id, cat in categories.items() %}
@@ -68,9 +89,14 @@
                             <h4 class="font-semibold text-gray-800">{{ stats.name }}</h4>
                             <p class="text-sm text-gray-500">{{ stats.total }} questions</p>
                         </div>
-                        <span class="{% if stats.percent == 100 %}bg-green-100 text-green-800{% elif stats.percent > 50 %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %} text-sm px-2 py-1 rounded">
-                            {{ stats.percent }}%
-                        </span>
+                        <div class="flex items-center gap-2">
+                            {% if stats.flagged > 0 %}
+                            <span class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded font-medium">{{ stats.flagged }} flagged</span>
+                            {% endif %}
+                            <span class="{% if stats.percent == 100 %}bg-green-100 text-green-800{% elif stats.percent > 50 %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %} text-sm px-2 py-1 rounded">
+                                {{ stats.percent }}%
+                            </span>
+                        </div>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-2">
                         <div class="{% if stats.percent == 100 %}bg-green-500{% elif stats.percent > 50 %}bg-yellow-500{% else %}bg-blue-500{% endif %} h-2 rounded-full" style="width: {{ stats.percent }}%"></div>
@@ -95,9 +121,14 @@
                             <h4 class="font-semibold text-gray-800">{{ stats.name }}</h4>
                             <p class="text-sm text-gray-500">{{ stats.total }} questions</p>
                         </div>
-                        <span class="{% if stats.percent == 100 %}bg-green-100 text-green-800{% elif stats.percent > 50 %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %} text-sm px-2 py-1 rounded">
-                            {{ stats.percent }}%
-                        </span>
+                        <div class="flex items-center gap-2">
+                            {% if stats.flagged > 0 %}
+                            <span class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded font-medium">{{ stats.flagged }} flagged</span>
+                            {% endif %}
+                            <span class="{% if stats.percent == 100 %}bg-green-100 text-green-800{% elif stats.percent > 50 %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %} text-sm px-2 py-1 rounded">
+                                {{ stats.percent }}%
+                            </span>
+                        </div>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-2">
                         <div class="{% if stats.percent == 100 %}bg-green-500{% elif stats.percent > 50 %}bg-yellow-500{% else %}bg-blue-500{% endif %} h-2 rounded-full" style="width: {{ stats.percent }}%"></div>

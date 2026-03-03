@@ -14,6 +14,9 @@
                 <h1 class="text-xl font-bold">{{ test_name }}</h1>
             </div>
             <div class="flex items-center gap-4">
+                {% if is_admin %}
+                <a href="/admin" class="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded">Admin Panel</a>
+                {% endif %}
                 <span class="text-blue-100">{{ name }}</span>
                 <a href="/logout" class="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded">Logout</a>
             </div>
@@ -86,6 +89,15 @@
                                 </svg>
                                 History
                             </button>
+                            <button onclick="toggleFlag('{{ test_id }}', {{ q.id }}, {{ 'true' if q.flagged else 'false' }})"
+                                id="flag-btn-{{ q.id }}"
+                                class="{% if q.flagged %}text-red-600 hover:text-red-800{% else %}text-gray-400 hover:text-red-600{% endif %} text-sm"
+                                title="{% if q.flagged %}Unflag this question{% else %}Flag as not a good question{% endif %}">
+                                <svg class="w-4 h-4 inline" fill="{% if q.flagged %}currentColor{% else %}none{% endif %}" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path>
+                                </svg>
+                                Flag
+                            </button>
                         </div>
                         <p id="question-text-{{ q.id }}" class="text-gray-800 font-medium mb-2">{{ q.question }}</p>
                         <div id="options-{{ q.id }}" class="grid grid-cols-2 gap-2 text-sm">
@@ -107,6 +119,17 @@
                             </span>
                             {% else %}
                             <span>Awaiting verification</span>
+                            {% endif %}
+                        </div>
+                        <!-- Flag Status -->
+                        <div id="flag-status-{{ q.id }}" class="{% if q.flagged %}mt-1 text-sm text-red-600{% else %}hidden mt-1 text-sm text-red-600{% endif %}">
+                            {% if q.flagged %}
+                            <span class="flex items-center gap-1">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path>
+                                </svg>
+                                Flagged by: {{ q.flagged_by }} — Needs replacement
+                            </span>
                             {% endif %}
                         </div>
                     </div>
@@ -321,6 +344,53 @@
             }
 
             btn.disabled = false;
+        }
+
+        async function toggleFlag(testId, questionId, isCurrentlyFlagged) {
+            const action = isCurrentlyFlagged ? 'unflag' : 'flag';
+            const flagBtn = document.getElementById(`flag-btn-${questionId}`);
+            const flagStatus = document.getElementById(`flag-status-${questionId}`);
+
+            try {
+                const response = await fetch('/jwg/flag-question', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ test_id: testId, question_id: questionId, action })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    if (action === 'flag') {
+                        flagBtn.className = 'text-red-600 hover:text-red-800 text-sm';
+                        flagBtn.title = 'Unflag this question';
+                        flagBtn.onclick = () => toggleFlag(testId, questionId, true);
+                        flagBtn.innerHTML = `<svg class="w-4 h-4 inline" fill="currentColor" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path>
+                        </svg> Flag`;
+                        flagStatus.classList.remove('hidden');
+                        flagStatus.innerHTML = `<span class="flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path>
+                            </svg>
+                            Flagged by: ${result.flagged_by} — Needs replacement
+                        </span>`;
+                    } else {
+                        flagBtn.className = 'text-gray-400 hover:text-red-600 text-sm';
+                        flagBtn.title = 'Flag as not a good question';
+                        flagBtn.onclick = () => toggleFlag(testId, questionId, false);
+                        flagBtn.innerHTML = `<svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path>
+                        </svg> Flag`;
+                        flagStatus.classList.add('hidden');
+                        flagStatus.innerHTML = '';
+                    }
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
         }
 
         function openEditModal(questionId, questionText, reference, correctIndex, options) {
