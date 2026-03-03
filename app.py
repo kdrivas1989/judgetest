@@ -1650,6 +1650,25 @@ def resend_email():
         return jsonify({'error': f'Email failed: {msg}'}), 500
 
 
+@app.route('/admin/upload-db', methods=['POST'])
+@admin_required
+def upload_db():
+    """Temporary endpoint to upload local database to replace live one."""
+    import base64
+    data = request.json
+    db_b64 = data.get('database')
+    if not db_b64:
+        return jsonify({'error': 'No database provided'}), 400
+    db_bytes = base64.b64decode(db_b64)
+    # Close current connection
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
+    with open(DATABASE_PATH, 'wb') as f:
+        f.write(db_bytes)
+    return jsonify({'success': True, 'message': f'Database uploaded ({len(db_bytes)} bytes)'})
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV', 'development') == 'development'
