@@ -57,12 +57,12 @@ def normalize_section_ref(section):
 
     return s
 
-import sqlite3
+import psycopg2
+import psycopg2.extras
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'uspa-judge-test-secret-key-change-in-production')
-DATABASE_PATH = os.environ.get('DATABASE_PATH', 'judgetest.db')
-os.makedirs(os.path.dirname(DATABASE_PATH) or '.', exist_ok=True)
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 # Categories based on chapters
 CATEGORIES = {
@@ -166,11 +166,10 @@ We recommend changing your password after your first login.
     return False, str(last_error)
 
 
-def get_sqlite_db():
-    """Get SQLite database connection for local development."""
+def get_db():
+    """Get PostgreSQL database connection."""
     if 'db' not in g:
-        g.db = sqlite3.connect(DATABASE_PATH)
-        g.db.row_factory = sqlite3.Row
+        g.db = psycopg2.connect(DATABASE_URL)
     return g.db
 
 
@@ -184,7 +183,7 @@ def close_db(exception):
 
 def init_db():
     """Initialize the database with tables and default users."""
-    conn = sqlite3.connect(DATABASE_PATH)
+    conn = psycopg2.connect(DATABASE_URL)
     cursor = conn.cursor()
 
     # Create users table
@@ -197,15 +196,10 @@ def init_db():
             categories TEXT DEFAULT '[]',
             assigned_tests TEXT DEFAULT '[]',
             proctor_level TEXT DEFAULT 'regional',
-            expiration_date TEXT DEFAULT ''
+            expiration_date TEXT DEFAULT '',
+            last_login TEXT DEFAULT ''
         )
     ''')
-
-    # Add last_login column if not exists
-    cursor.execute("PRAGMA table_info(users)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if 'last_login' not in columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN last_login TEXT DEFAULT ''")
 
     # Create test_results table
     cursor.execute('''
@@ -237,7 +231,7 @@ def init_db():
     # Create question_verifications table for JWG
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS question_verifications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             test_id TEXT NOT NULL,
             question_id INTEGER NOT NULL,
             verified_by TEXT NOT NULL,
@@ -250,7 +244,7 @@ def init_db():
     # Create question_changes table for JWG edit audit trail
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS question_changes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             test_id TEXT NOT NULL,
             question_id INTEGER NOT NULL,
             changed_by TEXT NOT NULL,
@@ -263,7 +257,7 @@ def init_db():
     # Create question_flags table for JWG flagged questions
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS question_flags (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             test_id TEXT NOT NULL,
             question_id INTEGER NOT NULL,
             flagged_by TEXT NOT NULL,
@@ -274,10 +268,10 @@ def init_db():
     ''')
 
     # Add default admin if not exists
-    cursor.execute('SELECT username FROM users WHERE username = ?', ('admin',))
+    cursor.execute('SELECT username FROM users WHERE username = %s', ('admin',))
     if not cursor.fetchone():
         cursor.execute(
-            'INSERT INTO users (username, password, role, name, categories, assigned_tests) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO users (username, password, role, name, categories, assigned_tests) VALUES (%s, %s, %s, %s, %s, %s)',
             ('admin', 'admin123', 'admin', 'Administrator', '[]', '[]')
         )
 
@@ -293,15 +287,15 @@ def init_db():
         ('kdrivas1989@gmail.com', 'Kevin Drivas'),
     ]
     for email, name in jwg_members:
-        cursor.execute('SELECT username FROM users WHERE username = ?', (email,))
+        cursor.execute('SELECT username FROM users WHERE username = %s', (email,))
         if not cursor.fetchone():
             cursor.execute(
-                'INSERT INTO users (username, password, role, name, categories, assigned_tests) VALUES (?, ?, ?, ?, ?, ?)',
+                'INSERT INTO users (username, password, role, name, categories, assigned_tests) VALUES (%s, %s, %s, %s, %s, %s)',
                 (email, 'password', 'jwg,admin' if email == 'kdrivas1989@gmail.com' else 'jwg', name, '[]', '[]')
             )
 
     # Ensure kdrivas1989@gmail.com has admin and jwg roles
-    cursor.execute('SELECT role FROM users WHERE username = ?', ('kdrivas1989@gmail.com',))
+    cursor.execute('SELECT role FROM users WHERE username = %s', ('kdrivas1989@gmail.com',))
     row = cursor.fetchone()
     if row:
         role_str = row[0]
@@ -310,7 +304,7 @@ def init_db():
         if 'jwg' not in role_str:
             role_str = role_str + ',jwg'
         if role_str != row[0]:
-            cursor.execute('UPDATE users SET role = ? WHERE username = ?',
+            cursor.execute('UPDATE users SET role = %s WHERE username = %s',
                            (role_str, 'kdrivas1989@gmail.com'))
 
     # Auto-seed any missing tests from DEFAULT_TESTS
@@ -321,8 +315,13 @@ def init_db():
         for test_id in missing:
             test_data = DEFAULT_TESTS[test_id]
             cursor.execute('''
-                INSERT OR REPLACE INTO tests (test_id, name, chapter, passing_score, questions)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO tests (test_id, name, chapter, passing_score, questions)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (test_id) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    chapter = EXCLUDED.chapter,
+                    passing_score = EXCLUDED.passing_score,
+                    questions = EXCLUDED.questions
             ''', (test_id, test_data['name'], test_data['chapter'],
                   test_data['passing_score'], json.dumps(test_data['questions'])))
         print(f"Auto-seeded {len(missing)} missing tests to database: {missing}")
@@ -333,8 +332,9 @@ def init_db():
 
 def get_user(username):
     """Get user from database."""
-    db = get_sqlite_db()
-    cursor = db.execute('SELECT * FROM users WHERE username = ?', (username,))
+    db = get_db()
+    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute('SELECT * FROM users WHERE username = %s', (username,))
     row = cursor.fetchone()
     if row:
         return {
@@ -352,8 +352,9 @@ def get_user(username):
 
 def get_all_users():
     """Get all users from database."""
-    db = get_sqlite_db()
-    cursor = db.execute('SELECT * FROM users')
+    db = get_db()
+    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute('SELECT * FROM users')
     users = {}
     for row in cursor.fetchall():
         users[row['username']] = {
@@ -376,10 +377,20 @@ def save_user(username, user_data):
     proctor_level = user_data.get('proctor_level', 'regional')
     expiration_date = user_data.get('expiration_date', '') or ''
     last_login = user_data.get('last_login', '') or ''
-    db = get_sqlite_db()
-    db.execute('''
-        INSERT OR REPLACE INTO users (username, password, role, name, categories, assigned_tests, proctor_level, expiration_date, last_login)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('''
+        INSERT INTO users (username, password, role, name, categories, assigned_tests, proctor_level, expiration_date, last_login)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (username) DO UPDATE SET
+            password = EXCLUDED.password,
+            role = EXCLUDED.role,
+            name = EXCLUDED.name,
+            categories = EXCLUDED.categories,
+            assigned_tests = EXCLUDED.assigned_tests,
+            proctor_level = EXCLUDED.proctor_level,
+            expiration_date = EXCLUDED.expiration_date,
+            last_login = EXCLUDED.last_login
     ''', (username, user_data['password'], user_data['role'], user_data['name'], categories, assigned_tests, proctor_level, expiration_date, last_login))
     db.commit()
 
@@ -410,15 +421,17 @@ def remove_role(existing_role_str, role_to_remove):
 
 def delete_user(username):
     """Delete user from database."""
-    db = get_sqlite_db()
-    db.execute('DELETE FROM users WHERE username = ?', (username,))
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('DELETE FROM users WHERE username = %s', (username,))
     db.commit()
 
 
 def get_test_result(result_id):
     """Get test result from database."""
-    db = get_sqlite_db()
-    cursor = db.execute('SELECT data FROM test_results WHERE result_id = ?', (result_id,))
+    db = get_db()
+    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute('SELECT data FROM test_results WHERE result_id = %s', (result_id,))
     row = cursor.fetchone()
     if row:
         return json.loads(row['data'])
@@ -427,8 +440,9 @@ def get_test_result(result_id):
 
 def get_all_test_results():
     """Get all test results from database."""
-    db = get_sqlite_db()
-    cursor = db.execute('SELECT result_id, data FROM test_results')
+    db = get_db()
+    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute('SELECT result_id, data FROM test_results')
     results = {}
     for row in cursor.fetchall():
         results[row['result_id']] = json.loads(row['data'])
@@ -437,18 +451,20 @@ def get_all_test_results():
 
 def save_test_result(result_id, result_data):
     """Save test result to database."""
-    db = get_sqlite_db()
-    db.execute(
-        'INSERT OR REPLACE INTO test_results (result_id, data) VALUES (?, ?)',
-        (result_id, json.dumps(result_data))
-    )
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('''
+        INSERT INTO test_results (result_id, data) VALUES (%s, %s)
+        ON CONFLICT (result_id) DO UPDATE SET data = EXCLUDED.data
+    ''', (result_id, json.dumps(result_data)))
     db.commit()
 
 
 def get_custom_questions(test_id):
     """Get custom questions for a test from database."""
-    db = get_sqlite_db()
-    cursor = db.execute('SELECT data FROM custom_questions WHERE test_id = ?', (test_id,))
+    db = get_db()
+    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute('SELECT data FROM custom_questions WHERE test_id = %s', (test_id,))
     row = cursor.fetchone()
     if row:
         return json.loads(row['data'])
@@ -457,21 +473,23 @@ def get_custom_questions(test_id):
 
 def save_custom_questions(test_id, questions_data):
     """Save custom questions for a test to database."""
-    db = get_sqlite_db()
-    db.execute(
-        'INSERT OR REPLACE INTO custom_questions (test_id, data) VALUES (?, ?)',
-        (test_id, json.dumps(questions_data))
-    )
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('''
+        INSERT INTO custom_questions (test_id, data) VALUES (%s, %s)
+        ON CONFLICT (test_id) DO UPDATE SET data = EXCLUDED.data
+    ''', (test_id, json.dumps(questions_data)))
     db.commit()
 
 
 def get_question_verifications(test_id=None):
     """Get question verifications, optionally filtered by test_id."""
-    db = get_sqlite_db()
+    db = get_db()
+    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     if test_id:
-        cursor = db.execute('SELECT * FROM question_verifications WHERE test_id = ?', (test_id,))
+        cursor.execute('SELECT * FROM question_verifications WHERE test_id = %s', (test_id,))
     else:
-        cursor = db.execute('SELECT * FROM question_verifications')
+        cursor.execute('SELECT * FROM question_verifications')
     verifications = {}
     for row in cursor.fetchall():
         key = f"{row['test_id']}_{row['question_id']}"
@@ -486,11 +504,16 @@ def get_question_verifications(test_id=None):
 def save_question_verification(test_id, question_id, username, name):
     """Save a question verification."""
     verified_at = datetime.now().isoformat()
-    db = get_sqlite_db()
-    db.execute('''
-        INSERT OR REPLACE INTO question_verifications
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('''
+        INSERT INTO question_verifications
         (test_id, question_id, verified_by, verified_at, verifier_name)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (test_id, question_id) DO UPDATE SET
+            verified_by = EXCLUDED.verified_by,
+            verified_at = EXCLUDED.verified_at,
+            verifier_name = EXCLUDED.verifier_name
     ''', (test_id, question_id, username, verified_at, name))
     db.commit()
     return True
@@ -498,8 +521,9 @@ def save_question_verification(test_id, question_id, username, name):
 
 def remove_question_verification(test_id, question_id):
     """Remove a question verification."""
-    db = get_sqlite_db()
-    db.execute('DELETE FROM question_verifications WHERE test_id = ? AND question_id = ?', (test_id, question_id))
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('DELETE FROM question_verifications WHERE test_id = %s AND question_id = %s', (test_id, question_id))
     db.commit()
     return True
 
@@ -507,20 +531,22 @@ def remove_question_verification(test_id, question_id):
 def save_question_change(test_id, question_id, username, name, changes):
     """Save a question change record for audit trail."""
     changed_at = datetime.now().isoformat()
-    db = get_sqlite_db()
-    db.execute('''
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('''
         INSERT INTO question_changes
         (test_id, question_id, changed_by, changer_name, changed_at, changes)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
     ''', (test_id, question_id, username, name, changed_at, json.dumps(changes)))
     db.commit()
 
 
 def get_question_changes(test_id, question_id):
     """Get change history for a question, newest first."""
-    db = get_sqlite_db()
-    cursor = db.execute(
-        'SELECT * FROM question_changes WHERE test_id = ? AND question_id = ? ORDER BY changed_at DESC',
+    db = get_db()
+    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute(
+        'SELECT * FROM question_changes WHERE test_id = %s AND question_id = %s ORDER BY changed_at DESC',
         (test_id, question_id)
     )
     changes = []
@@ -537,11 +563,12 @@ def get_question_changes(test_id, question_id):
 
 def get_question_flags(test_id=None):
     """Get question flags, optionally filtered by test_id."""
-    db = get_sqlite_db()
+    db = get_db()
+    cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     if test_id:
-        cursor = db.execute('SELECT * FROM question_flags WHERE test_id = ?', (test_id,))
+        cursor.execute('SELECT * FROM question_flags WHERE test_id = %s', (test_id,))
     else:
-        cursor = db.execute('SELECT * FROM question_flags')
+        cursor.execute('SELECT * FROM question_flags')
     flags = {}
     for row in cursor.fetchall():
         key = f"{row['test_id']}_{row['question_id']}"
@@ -556,11 +583,16 @@ def get_question_flags(test_id=None):
 def save_question_flag(test_id, question_id, username, name):
     """Save a question flag."""
     flagged_at = datetime.now().isoformat()
-    db = get_sqlite_db()
-    db.execute('''
-        INSERT OR REPLACE INTO question_flags
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('''
+        INSERT INTO question_flags
         (test_id, question_id, flagged_by, flagged_at, flagger_name)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (test_id, question_id) DO UPDATE SET
+            flagged_by = EXCLUDED.flagged_by,
+            flagged_at = EXCLUDED.flagged_at,
+            flagger_name = EXCLUDED.flagger_name
     ''', (test_id, question_id, username, flagged_at, name))
     db.commit()
     return True
@@ -568,8 +600,9 @@ def save_question_flag(test_id, question_id, username, name):
 
 def remove_question_flag(test_id, question_id):
     """Remove a question flag."""
-    db = get_sqlite_db()
-    db.execute('DELETE FROM question_flags WHERE test_id = ? AND question_id = ?', (test_id, question_id))
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('DELETE FROM question_flags WHERE test_id = %s AND question_id = %s', (test_id, question_id))
     db.commit()
     return True
 
@@ -589,8 +622,9 @@ def get_test_questions(test_id):
 def get_all_tests():
     """Get all tests from database, falling back to defaults if not seeded."""
     try:
-        db = get_sqlite_db()
-        cursor = db.execute('SELECT * FROM tests')
+        db = get_db()
+        cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute('SELECT * FROM tests')
         tests = {}
         for row in cursor.fetchall():
             tests[row['test_id']] = {
@@ -602,7 +636,7 @@ def get_all_tests():
         if tests:
             return tests
     except Exception as e:
-        print(f"Error loading tests from SQLite: {e}")
+        print(f"Error loading tests from database: {e}")
     # Fallback to default tests
     return DEFAULT_TESTS
 
@@ -615,10 +649,16 @@ def get_test(test_id):
 
 def save_test(test_id, test_data):
     """Save a test to database."""
-    db = get_sqlite_db()
-    db.execute('''
-        INSERT OR REPLACE INTO tests (test_id, name, chapter, passing_score, questions)
-        VALUES (?, ?, ?, ?, ?)
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('''
+        INSERT INTO tests (test_id, name, chapter, passing_score, questions)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (test_id) DO UPDATE SET
+            name = EXCLUDED.name,
+            chapter = EXCLUDED.chapter,
+            passing_score = EXCLUDED.passing_score,
+            questions = EXCLUDED.questions
     ''', (test_id, test_data['name'], test_data['chapter'],
           test_data['passing_score'], json.dumps(test_data['questions'])))
     db.commit()
@@ -767,9 +807,10 @@ def login():
             session['role'] = user['role']
             session['name'] = user['name']
             # Record last login
-            db = get_sqlite_db()
-            db.execute('UPDATE users SET last_login = ? WHERE username = ?',
-                       (datetime.now().isoformat(), username))
+            db = get_db()
+            cursor = db.cursor()
+            cursor.execute('UPDATE users SET last_login = %s WHERE username = %s',
+                           (datetime.now().isoformat(), username))
             db.commit()
             return redirect(url_for('index'))
         else:
@@ -2454,6 +2495,7 @@ if SOCKETIO_ENABLED:
 
         emit('ws_scoring_type_changed', {
             'scoring_type': new_type,
+            'panel_size': panel_size,
             'state': 'scoring',
             'scores': {str(k): v for k, v in room['scores'].items()},
             'completion': _ws_scoring_completion(room),
